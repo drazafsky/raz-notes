@@ -1,10 +1,11 @@
 import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { App } from './app';
 import { AuthService, AuthStatus } from './auth.service';
-import { AuthRecord } from './crypto.utils';
-import { Note, StorageService } from './storage.service';
+import { Note, NoteKind } from './storage.service';
+import { NotesStateService } from './notes-state.service';
 
 class MockAuthService {
   readonly status = signal<AuthStatus>('unlocked');
@@ -17,64 +18,53 @@ class MockAuthService {
   );
 
   async init(): Promise<void> {}
-
   async createAccount(username: string): Promise<void> {
     this.storedUsername.set(username.trim());
     this.status.set('unlocked');
   }
-
   async login(username: string): Promise<void> {
     this.storedUsername.set(username.trim());
     this.status.set('unlocked');
   }
-
   async loginWithDevice(): Promise<void> {
     this.status.set('unlocked');
   }
-
   async enablePasswordlessUnlock(): Promise<void> {
     this.passwordlessEnrolled.set(true);
   }
-
   async disablePasswordlessUnlock(): Promise<void> {
     this.passwordlessEnrolled.set(false);
   }
-
   logout(): void {
     this.status.set('locked');
   }
 }
 
-class MockStorageService {
-  init = jasmine.createSpy('init').and.returnValue(Promise.resolve());
-  setVaultKey = jasmine.createSpy('setVaultKey');
-  exportVaultKey = jasmine.createSpy('exportVaultKey').and.returnValue(Promise.resolve(new ArrayBuffer(32)));
-  readAuthRecord = jasmine.createSpy('readAuthRecord').and.returnValue(
-    Promise.resolve<AuthRecord | null>(null)
-  );
-  saveAuthRecord = jasmine.createSpy('saveAuthRecord').and.returnValue(Promise.resolve());
-  loadNotes = jasmine.createSpy('loadNotes').and.returnValue(Promise.resolve([] as Note[]));
-  saveNotes = jasmine.createSpy('saveNotes').and.returnValue(Promise.resolve());
-  writeAttachment = jasmine.createSpy('writeAttachment').and.returnValue(Promise.resolve());
-  readAttachment = jasmine.createSpy('readAttachment').and.returnValue(
-    Promise.resolve(new Blob(['attachment']))
-  );
-  deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
+class MockNotesStateService {
+  readonly notes = signal<Note[]>([]);
+  readonly notesByUpdatedAt = computed(() => this.notes());
+
+  load = jasmine.createSpy('load').and.returnValue(Promise.resolve());
+  clear = jasmine.createSpy('clear');
+  getNote(noteId: number): Note | undefined {
+    return this.notes().find((note) => note.id === noteId);
+  }
 }
 
 describe('App', () => {
   let mockAuth: MockAuthService;
-  let mockStorage: MockStorageService;
+  let mockNotesState: MockNotesStateService;
 
   beforeEach(async () => {
     mockAuth = new MockAuthService();
-    mockStorage = new MockStorageService();
+    mockNotesState = new MockNotesStateService();
 
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
+        provideRouter([]),
         { provide: AuthService, useValue: mockAuth },
-        { provide: StorageService, useValue: mockStorage }
+        { provide: NotesStateService, useValue: mockNotesState }
       ]
     }).compileComponents();
   });
@@ -89,22 +79,7 @@ describe('App', () => {
     expect(fixture.nativeElement.textContent).toContain('Create your local account');
   });
 
-  it('creates a plain text note and persists it when unlocked', async () => {
-    const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-
-    app.noteKind = 'text';
-    app.noteTitle = 'My text note';
-    app.noteText = 'Remember milk';
-    await app.createNote();
-
-    expect(app.notes().length).toBe(1);
-    expect(app.notes()[0].kind).toBe('text');
-    expect(app.notes()[0].text).toBe('Remember milk');
-    expect(mockStorage.saveNotes).toHaveBeenCalled();
-  });
-
-  it('shows a device unlock button when passwordless is enabled', async () => {
+  it('shows device unlock on the locked screen when passwordless is enabled', async () => {
     mockAuth.status.set('locked');
     mockAuth.passwordlessEnrolled.set(true);
 
@@ -115,32 +90,24 @@ describe('App', () => {
     expect(fixture.nativeElement.textContent).toContain('Unlock with device');
   });
 
-  it('loads notes after a successful device unlock', async () => {
-    const savedNote: Note = {
-      id: 1,
-      kind: 'text',
-      title: 'Saved',
-      text: 'Persisted',
-      createdAt: new Date().toISOString(),
-      attachments: []
-    };
-    mockAuth.status.set('locked');
-    mockAuth.passwordlessEnrolled.set(true);
-    mockStorage.loadNotes.and.returnValue(Promise.resolve([savedNote]));
-
+  it('loads notes after a successful login', async () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
-    await app.loginWithDevice();
 
-    expect(app.notes()).toEqual([savedNote]);
+    app.loginUsername = 'Alice';
+    app.loginPassword = 'password123';
+    await app.login();
+
+    expect(mockNotesState.load).toHaveBeenCalled();
+    expect(mockAuth.status()).toBe('unlocked');
   });
 
-  it('formats file sizes correctly', async () => {
+  it('shows routed navigation when unlocked', async () => {
     const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
 
-    expect(app.formatFileSize(500)).toBe('500 B');
-    expect(app.formatFileSize(1536)).toBe('1.5 KB');
-    expect(app.formatFileSize(2097152)).toBe('2.0 MB');
+    expect(fixture.nativeElement.textContent).toContain('All notes');
+    expect(fixture.nativeElement.textContent).toContain('New note');
   });
 });

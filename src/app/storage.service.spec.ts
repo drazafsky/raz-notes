@@ -152,6 +152,7 @@ describe('StorageService', () => {
         title: 'Secret',
         text: 'Top secret note',
         createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T00:00:00.000Z',
         attachments: []
       }
     ];
@@ -187,6 +188,7 @@ describe('StorageService', () => {
         title: 'Legacy',
         text: 'Needs migration',
         createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T00:00:00.000Z',
         attachments: [{ id: 'att-legacy', name: 'legacy.txt', type: 'text/plain', size: 6 }]
       }
     ];

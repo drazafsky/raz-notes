@@ -26,6 +26,7 @@ export interface Note {
   text?: string;
   todos?: string[];
   createdAt: string;
+  lastModifiedAt: string;
   attachments: Attachment[];
 }
 
@@ -173,6 +174,7 @@ export class StorageService {
     if (Array.isArray(parsed)) {
       return parsed.map((note) => ({
         ...(note as Note),
+        lastModifiedAt: (note as Note).lastModifiedAt ?? (note as Note).createdAt,
         attachments: (note as Note).attachments ?? []
       }));
     }
