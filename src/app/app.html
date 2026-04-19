@@ -1,140 +1,276 @@
 <main class="mx-auto max-w-2xl p-4 font-sans">
-  <h1 class="mb-1 text-3xl font-bold text-gray-900">Raz Notes</h1>
-  <p class="mb-4 text-gray-500">Offline-first notes with local file system persistence.</p>
+  <header class="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="mb-1 text-3xl font-bold text-gray-900">Raz Notes</h1>
+      <p class="text-gray-500">Offline-first notes with local encrypted storage.</p>
+    </div>
 
-  <section class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-    <h2 class="mb-3 text-xl font-semibold text-gray-800">Create note</h2>
-    <form (ngSubmit)="createNote()" class="flex flex-col gap-3">
-      <div class="flex flex-col gap-1">
-        <label for="kind" class="text-sm font-medium text-gray-700">Type</label>
-        <select
-          id="kind"
-          name="kind"
-          [(ngModel)]="noteKind"
-          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="text">Plain text</option>
-          <option value="todo">Todo list</option>
-        </select>
+    @if (auth.isUnlocked()) {
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <div class="font-medium">Signed in as {{ auth.storedUsername() }}</div>
+        <div class="mt-1 text-xs text-emerald-700">All authentication and storage stay on this device.</div>
       </div>
-
-      <div class="flex flex-col gap-1">
-        <label for="title" class="text-sm font-medium text-gray-700">Title</label>
-        <input
-          id="title"
-          name="title"
-          [(ngModel)]="noteTitle"
-          required
-          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      @if (noteKind === 'text') {
-        <div class="flex flex-col gap-1">
-          <label for="text" class="text-sm font-medium text-gray-700">Text</label>
-          <textarea
-            id="text"
-            name="text"
-            rows="4"
-            [(ngModel)]="noteText"
-            required
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          ></textarea>
-        </div>
-      } @else {
-        <div class="flex flex-col gap-1">
-          <label for="todo" class="text-sm font-medium text-gray-700">Todo items (one per line)</label>
-          <textarea
-            id="todo"
-            name="todo"
-            rows="4"
-            [(ngModel)]="todoText"
-            required
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          ></textarea>
-        </div>
-      }
-
-      <div class="flex flex-col gap-1">
-        <label for="attachments" class="text-sm font-medium text-gray-700">Attachments (optional)</label>
-        <input
-          #fileInput
-          id="attachments"
-          type="file"
-          multiple
-          (change)="onFileChange($event)"
-          class="text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
-        />
-      </div>
-
-      @if (pendingFiles.length > 0) {
-        <div class="flex flex-wrap gap-2">
-          @for (file of pendingFiles; track file.name) {
-            <span class="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
-              {{ file.name }} ({{ formatFileSize(file.size) }})
-            </span>
-          }
-        </div>
-      }
-
-      <button
-        type="submit"
-        class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-      >
-        Create note
-      </button>
-    </form>
-  </section>
-
-  <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-    <h2 class="mb-3 text-xl font-semibold text-gray-800">Saved notes</h2>
-    @if (notes().length === 0) {
-      <p class="text-gray-500">No notes yet.</p>
-    } @else {
-      <ul class="flex flex-col gap-4">
-        @for (note of notes(); track note.id) {
-          <li class="rounded border border-gray-100 bg-gray-50 p-3">
-            <div class="flex items-start justify-between gap-2">
-              <div>
-                <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
-                <small class="text-xs text-gray-400">{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
-              </div>
-              <button
-                type="button"
-                (click)="deleteNote(note.id)"
-                class="shrink-0 rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"
-              >
-                Delete
-              </button>
-            </div>
-            @if (note.kind === 'text') {
-              <p class="mt-1 text-sm text-gray-700">{{ note.text }}</p>
-            } @else {
-              <ol class="mt-2 list-decimal pl-5 text-sm text-gray-700">
-                @for (todo of note.todos; track $index) {
-                  <li>{{ todo }}</li>
-                }
-              </ol>
-            }
-            @if (note.attachments.length > 0) {
-              <div class="mt-2 border-t border-gray-100 pt-2">
-                <p class="mb-1 text-xs font-medium text-gray-500">
-                  Attachments ({{ note.attachments.length }})
-                </p>
-                <div class="flex flex-col gap-3">
-                  @for (att of note.attachments; track att.id) {
-                    <div>
-                      <div class="mb-1 text-xs text-gray-500">{{ att.name }} ({{ formatFileSize(att.size) }})</div>
-                      <app-attachment-viewer [noteId]="note.id" [attachment]="att" />
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-          </li>
-        }
-      </ul>
     }
-  </section>
+  </header>
+
+  @if (auth.status() === 'initializing') {
+    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p class="text-sm text-gray-500">Loading secure local vault…</p>
+    </section>
+  } @else if (auth.status() === 'setup-required') {
+    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <h2 class="mb-2 text-xl font-semibold text-gray-800">Create your local account</h2>
+      <p class="mb-4 text-sm text-gray-500">
+        This account is created entirely offline. Your password protects note and attachment data stored on this device.
+      </p>
+
+      @if (authError) {
+        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+      }
+
+      <form (ngSubmit)="setupAccount()" class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <label for="setupUsername" class="text-sm font-medium text-gray-700">Username</label>
+          <input
+            id="setupUsername"
+            name="setupUsername"
+            [(ngModel)]="setupUsername"
+            autocomplete="username"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="setupPassword" class="text-sm font-medium text-gray-700">Password</label>
+          <input
+            id="setupPassword"
+            name="setupPassword"
+            type="password"
+            [(ngModel)]="setupPassword"
+            autocomplete="new-password"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <small class="text-xs text-gray-500">Use at least 8 characters. Password recovery is not available.</small>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="setupPasswordConfirm" class="text-sm font-medium text-gray-700">Confirm password</label>
+          <input
+            id="setupPasswordConfirm"
+            name="setupPasswordConfirm"
+            type="password"
+            [(ngModel)]="setupPasswordConfirm"
+            autocomplete="new-password"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        >
+          Create local account
+        </button>
+      </form>
+    </section>
+  } @else if (auth.status() === 'locked') {
+    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <h2 class="mb-2 text-xl font-semibold text-gray-800">Unlock your notes</h2>
+      <p class="mb-4 text-sm text-gray-500">
+        Sign in locally to decrypt your notes and attachments. No internet connection is required.
+      </p>
+
+      @if (auth.storedUsername()) {
+        <p class="mb-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          Local account: {{ auth.storedUsername() }}
+        </p>
+      }
+
+      @if (authError) {
+        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+      }
+
+      <form (ngSubmit)="login()" class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <label for="loginUsername" class="text-sm font-medium text-gray-700">Username</label>
+          <input
+            id="loginUsername"
+            name="loginUsername"
+            [(ngModel)]="loginUsername"
+            autocomplete="username"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="loginPassword" class="text-sm font-medium text-gray-700">Password</label>
+          <input
+            id="loginPassword"
+            name="loginPassword"
+            type="password"
+            [(ngModel)]="loginPassword"
+            autocomplete="current-password"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        >
+          Unlock notes
+        </button>
+      </form>
+    </section>
+  } @else {
+    <section class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <h2 class="text-xl font-semibold text-gray-800">Create note</h2>
+        <button
+          type="button"
+          (click)="logout()"
+          class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        >
+          Lock notes
+        </button>
+      </div>
+
+      @if (noteError) {
+        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ noteError }}</p>
+      }
+
+      <form (ngSubmit)="createNote()" class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <label for="kind" class="text-sm font-medium text-gray-700">Type</label>
+          <select
+            id="kind"
+            name="kind"
+            [(ngModel)]="noteKind"
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="text">Plain text</option>
+            <option value="todo">Todo list</option>
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label for="title" class="text-sm font-medium text-gray-700">Title</label>
+          <input
+            id="title"
+            name="title"
+            [(ngModel)]="noteTitle"
+            required
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        @if (noteKind === 'text') {
+          <div class="flex flex-col gap-1">
+            <label for="text" class="text-sm font-medium text-gray-700">Text</label>
+            <textarea
+              id="text"
+              name="text"
+              rows="4"
+              [(ngModel)]="noteText"
+              required
+              class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+        } @else {
+          <div class="flex flex-col gap-1">
+            <label for="todo" class="text-sm font-medium text-gray-700">Todo items (one per line)</label>
+            <textarea
+              id="todo"
+              name="todo"
+              rows="4"
+              [(ngModel)]="todoText"
+              required
+              class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+        }
+
+        <div class="flex flex-col gap-1">
+          <label for="attachments" class="text-sm font-medium text-gray-700">Attachments (optional)</label>
+          <input
+            #fileInput
+            id="attachments"
+            type="file"
+            multiple
+            (change)="onFileChange($event)"
+            class="text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
+
+        @if (pendingFiles.length > 0) {
+          <div class="flex flex-wrap gap-2">
+            @for (file of pendingFiles; track file.name) {
+              <span class="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
+                {{ file.name }} ({{ formatFileSize(file.size) }})
+              </span>
+            }
+          </div>
+        }
+
+        <button
+          type="submit"
+          class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        >
+          Create note
+        </button>
+      </form>
+    </section>
+
+    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <h2 class="mb-3 text-xl font-semibold text-gray-800">Saved notes</h2>
+      @if (notes().length === 0) {
+        <p class="text-gray-500">No notes yet.</p>
+      } @else {
+        <ul class="flex flex-col gap-4">
+          @for (note of notes(); track note.id) {
+            <li class="rounded border border-gray-100 bg-gray-50 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
+                  <small class="text-xs text-gray-400">{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
+                </div>
+                <button
+                  type="button"
+                  (click)="deleteNote(note.id)"
+                  class="shrink-0 rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"
+                >
+                  Delete
+                </button>
+              </div>
+              @if (note.kind === 'text') {
+                <p class="mt-1 text-sm text-gray-700">{{ note.text }}</p>
+              } @else {
+                <ol class="mt-2 list-decimal pl-5 text-sm text-gray-700">
+                  @for (todo of note.todos; track $index) {
+                    <li>{{ todo }}</li>
+                  }
+                </ol>
+              }
+              @if (note.attachments.length > 0) {
+                <div class="mt-2 border-t border-gray-100 pt-2">
+                  <p class="mb-1 text-xs font-medium text-gray-500">
+                    Attachments ({{ note.attachments.length }})
+                  </p>
+                  <div class="flex flex-col gap-3">
+                    @for (att of note.attachments; track att.id) {
+                      <div>
+                        <div class="mb-1 text-xs text-gray-500">{{ att.name }} ({{ formatFileSize(att.size) }})</div>
+                        <app-attachment-viewer [noteId]="note.id" [attachment]="att" />
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
 </main>
 
