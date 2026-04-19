@@ -1,6 +1,6 @@
 <main class="mx-auto max-w-2xl p-4 font-sans">
   <h1 class="mb-1 text-3xl font-bold text-gray-900">Raz Notes</h1>
-  <p class="mb-4 text-gray-500">Offline-first notes with local storage persistence.</p>
+  <p class="mb-4 text-gray-500">Offline-first notes with local file system persistence.</p>
 
   <section class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
     <h2 class="mb-3 text-xl font-semibold text-gray-800">Create note</h2>
@@ -55,6 +55,28 @@
         </div>
       }
 
+      <div class="flex flex-col gap-1">
+        <label for="attachments" class="text-sm font-medium text-gray-700">Attachments (optional)</label>
+        <input
+          #fileInput
+          id="attachments"
+          type="file"
+          multiple
+          (change)="onFileChange($event)"
+          class="text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+        />
+      </div>
+
+      @if (pendingFiles.length > 0) {
+        <div class="flex flex-wrap gap-2">
+          @for (file of pendingFiles; track file.name) {
+            <span class="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
+              {{ file.name }} ({{ formatFileSize(file.size) }})
+            </span>
+          }
+        </div>
+      }
+
       <button
         type="submit"
         class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
@@ -72,8 +94,19 @@
       <ul class="flex flex-col gap-4">
         @for (note of notes(); track note.id) {
           <li class="rounded border border-gray-100 bg-gray-50 p-3">
-            <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
-            <small class="text-xs text-gray-400">{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
+                <small class="text-xs text-gray-400">{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
+              </div>
+              <button
+                type="button"
+                (click)="deleteNote(note.id)"
+                class="shrink-0 rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"
+              >
+                Delete
+              </button>
+            </div>
             @if (note.kind === 'text') {
               <p class="mt-1 text-sm text-gray-700">{{ note.text }}</p>
             } @else {
@@ -83,9 +116,25 @@
                 }
               </ol>
             }
+            @if (note.attachments.length > 0) {
+              <div class="mt-2 border-t border-gray-100 pt-2">
+                <p class="mb-1 text-xs font-medium text-gray-500">
+                  Attachments ({{ note.attachments.length }})
+                </p>
+                <div class="flex flex-col gap-3">
+                  @for (att of note.attachments; track att.id) {
+                    <div>
+                      <div class="mb-1 text-xs text-gray-500">{{ att.name }} ({{ formatFileSize(att.size) }})</div>
+                      <app-attachment-viewer [noteId]="note.id" [attachment]="att" />
+                    </div>
+                  }
+                </div>
+              </div>
+            }
           </li>
         }
       </ul>
     }
   </section>
 </main>
+

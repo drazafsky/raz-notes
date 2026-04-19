@@ -6,7 +6,8 @@ Offline-first Angular notes application.
 
 - Create plain text notes
 - Create todo list notes (one item per line)
-- Notes are persisted in `localStorage`
+- Attach any file type to a note (images, videos, audio, PDFs, and more)
+- Notes and attachments are persisted locally using the **Origin Private File System (OPFS)** — fully offline, no server required
 - PWA/service worker setup for offline app shell support
 
 ## Development server
