@@ -1,5 +1,5 @@
-import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { AuthService } from './auth.service';
@@ -13,7 +13,8 @@ import { NotesStateService } from './notes-state.service';
 })
 export class App {
   readonly auth = inject(AuthService);
-  private readonly notesState = inject(NotesStateService);
+  readonly notesState = inject(NotesStateService);
+  private readonly router = inject(Router);
 
   authError = '';
   setupUsername = '';
@@ -21,6 +22,8 @@ export class App {
   setupPasswordConfirm = '';
   loginUsername = '';
   loginPassword = '';
+  readonly notesMenuExpanded = signal(true);
+  readonly mobileMenuOpen = signal(false);
 
   constructor() {
     void this.auth.init();
@@ -103,6 +106,27 @@ export class App {
     this.auth.logout();
     this.notesState.clear();
     this.loginPassword = '';
+    this.closeMobileMenu();
+  }
+
+  toggleNotesMenu(): void {
+    this.notesMenuExpanded.update((expanded) => !expanded);
+  }
+
+  toggleMobileMenu(): void {
+    this.mobileMenuOpen.update((open) => !open);
+  }
+
+  closeMobileMenu(): void {
+    this.mobileMenuOpen.set(false);
+  }
+
+  isNotesRouteActive(): boolean {
+    return this.router.url.startsWith('/notes');
+  }
+
+  isSettingsRouteActive(): boolean {
+    return this.router.url.startsWith('/settings');
   }
 
   private errorMessage(error: unknown): string {

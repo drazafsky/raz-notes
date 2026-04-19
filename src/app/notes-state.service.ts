@@ -15,6 +15,9 @@ export class NotesStateService {
   readonly notesByUpdatedAt = computed(() =>
     [...this.notes()].sort((left, right) => right.lastModifiedAt.localeCompare(left.lastModifiedAt))
   );
+  readonly notesByTitle = computed(() =>
+    [...this.notes()].sort((left, right) => left.title.localeCompare(right.title))
+  );
 
   constructor(private readonly storage: StorageService) {}
 

@@ -9,6 +9,7 @@ Offline-first Angular notes application with local-only authentication, optional
 - Attach any file type to a note (images, videos, audio, PDFs, and more)
 - Create a local account and sign in entirely offline
 - Optionally enable device-backed unlock (for example biometrics or a passkey prompt) when the browser exposes the required offline WebAuthn capabilities
+- Navigate with a shell menu containing Notes and Settings
 - Browse notes on a dedicated list page with created and last-modified timestamps
 - Open a note details page to review and edit a note with its fields prepopulated
 - Notes and attachments are encrypted locally using a password-protected vault stored in the **Origin Private File System (OPFS)**
