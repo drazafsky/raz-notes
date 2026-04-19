@@ -4,6 +4,15 @@ export interface EncryptedPayload {
   ciphertext: string;
 }
 
+export interface PasswordlessCredentialRecord {
+  version: 1;
+  credentialId: string;
+  prfSalt: string;
+  iv: string;
+  wrappedVaultKey: string;
+  createdAt: string;
+}
+
 export interface AuthRecord {
   version: 1;
   username: string;
@@ -13,6 +22,8 @@ export interface AuthRecord {
   wrappedVaultKey: string;
   iterations: number;
   createdAt: string;
+  userHandle?: string;
+  passwordless?: PasswordlessCredentialRecord;
 }
 
 const textEncoder = new TextEncoder();

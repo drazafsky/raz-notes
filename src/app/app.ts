@@ -78,6 +78,42 @@ export class App {
     }
   }
 
+  async loginWithDevice(): Promise<void> {
+    this.authError = '';
+
+    try {
+      await this.auth.loginWithDevice();
+      await this.loadNotes();
+      this.loginPassword = '';
+    } catch (error) {
+      this.notes.set([]);
+      if (this.auth.isUnlocked()) {
+        this.auth.logout();
+      }
+      this.authError = this.errorMessage(error);
+    }
+  }
+
+  async enablePasswordlessUnlock(): Promise<void> {
+    this.authError = '';
+
+    try {
+      await this.auth.enablePasswordlessUnlock();
+    } catch (error) {
+      this.authError = this.errorMessage(error);
+    }
+  }
+
+  async disablePasswordlessUnlock(): Promise<void> {
+    this.authError = '';
+
+    try {
+      await this.auth.disablePasswordlessUnlock();
+    } catch (error) {
+      this.authError = this.errorMessage(error);
+    }
+  }
+
   logout(): void {
     this.auth.logout();
     this.notes.set([]);

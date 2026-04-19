@@ -50,7 +50,9 @@
             autocomplete="new-password"
             class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <small class="text-xs text-gray-500">Use at least 8 characters. Password recovery is not available.</small>
+          <small class="text-xs text-gray-500">
+            Use at least 8 characters. You can add device unlock later if this browser supports it.
+          </small>
         </div>
 
         <div class="flex flex-col gap-1">
@@ -88,6 +90,23 @@
 
       @if (authError) {
         <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+      }
+
+      @if (auth.canUsePasswordless()) {
+        <div class="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3">
+          <p class="text-sm text-emerald-800">Device unlock is enabled on this device.</p>
+          <button
+            type="button"
+            (click)="loginWithDevice()"
+            class="mt-3 rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+          >
+            Unlock with device
+          </button>
+        </div>
+      } @else if (auth.passwordlessEnrolled() && !auth.passwordlessAvailable()) {
+        <p class="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Device unlock was enabled before, but this browser cannot use it right now. Use your password instead.
+        </p>
       }
 
       <form (ngSubmit)="login()" class="flex flex-col gap-3">
@@ -133,6 +152,43 @@
         >
           Lock notes
         </button>
+      </div>
+
+      @if (authError) {
+        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+      }
+
+      <div class="mb-4 rounded border border-gray-100 bg-gray-50 p-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="font-medium text-gray-900">Device unlock</h3>
+            @if (auth.passwordlessEnrolled()) {
+              <p class="mt-1 text-sm text-gray-600">Use a biometric or passkey-backed device prompt to unlock this vault without typing the password.</p>
+            } @else if (auth.passwordlessAvailable()) {
+              <p class="mt-1 text-sm text-gray-600">Enable an offline device-backed unlock method for faster sign-in on this device.</p>
+            } @else {
+              <p class="mt-1 text-sm text-gray-600">This browser does not expose the secure device-credential features needed for offline passwordless unlock.</p>
+            }
+          </div>
+
+          @if (auth.passwordlessEnrolled()) {
+            <button
+              type="button"
+              (click)="disablePasswordlessUnlock()"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400"
+            >
+              Remove device unlock
+            </button>
+          } @else if (auth.passwordlessAvailable()) {
+            <button
+              type="button"
+              (click)="enablePasswordlessUnlock()"
+              class="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+            >
+              Enable device unlock
+            </button>
+          }
+        </div>
       </div>
 
       @if (noteError) {
@@ -273,4 +329,3 @@
     </section>
   }
 </main>
-
