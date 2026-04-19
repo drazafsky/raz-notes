@@ -1,0 +1,37 @@
+<div class="mt-1">
+  @if (loading) {
+    <span class="text-xs text-gray-400">Loading attachment…</span>
+  } @else if (error) {
+    <span class="text-xs text-red-500">Failed to load {{ attachment.name }}</span>
+  } @else {
+    @if (category === 'image') {
+      <img
+        [src]="safeUrl"
+        [alt]="attachment.name"
+        class="max-h-64 rounded border border-gray-200 object-contain"
+      />
+    } @else if (category === 'video') {
+      <video
+        controls
+        [src]="safeUrl"
+        class="max-h-64 w-full rounded border border-gray-200"
+      ></video>
+    } @else if (category === 'audio') {
+      <audio controls [src]="safeUrl" class="w-full"></audio>
+    } @else if (category === 'pdf') {
+      <iframe
+        [src]="safeResourceUrl"
+        class="h-64 w-full rounded border border-gray-200"
+        [title]="attachment.name"
+      ></iframe>
+    } @else {
+      <a
+        [href]="safeUrl"
+        [download]="attachment.name"
+        class="inline-flex items-center gap-1 text-sm text-blue-600 underline hover:text-blue-800"
+      >
+        📎 {{ attachment.name }}
+      </a>
+    }
+  }
+</div>
