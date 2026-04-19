@@ -1,0 +1,59 @@
+<main>
+  <h1>Raz Notes</h1>
+  <p>Offline-first notes with local storage persistence.</p>
+
+  <section class="card">
+    <h2>Create note</h2>
+    <form (ngSubmit)="createNote()">
+      <label for="kind">Type</label>
+      <select id="kind" name="kind" [(ngModel)]="noteKind">
+        <option value="text">Plain text</option>
+        <option value="todo">Todo list</option>
+      </select>
+
+      <label for="title">Title</label>
+      <input id="title" name="title" [(ngModel)]="noteTitle" required />
+
+      @if (noteKind === 'text') {
+        <label for="text">Text</label>
+        <textarea id="text" name="text" rows="4" [(ngModel)]="noteText" required></textarea>
+      } @else {
+        <label for="todo">Todo items (one per line)</label>
+        <textarea
+          id="todo"
+          name="todo"
+          rows="4"
+          [(ngModel)]="todoText"
+          required
+        ></textarea>
+      }
+
+      <button type="submit">Create note</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Saved notes</h2>
+    @if (notes().length === 0) {
+      <p>No notes yet.</p>
+    } @else {
+      <ul>
+        @for (note of notes(); track note.id) {
+          <li>
+            <h3>{{ note.title }}</h3>
+            <small>{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
+            @if (note.kind === 'text') {
+              <p>{{ note.text }}</p>
+            } @else {
+              <ol>
+                @for (todo of note.todos; track $index) {
+                  <li>{{ todo }}</li>
+                }
+              </ol>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</main>
