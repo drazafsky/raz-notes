@@ -264,12 +264,28 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.selectedElementId = 't1';
     fixture.detectChanges();
 
-    const fontFamilyControl = fixture.nativeElement.querySelector('#font-family-t1');
-    const fontSizeControl = fixture.nativeElement.querySelector('#font-size-t1');
-    const textColorControl = fixture.nativeElement.querySelector('#text-color-t1');
+    const fontFamilyControl = fixture.nativeElement.querySelector(
+      '#font-family-t1',
+    ) as HTMLSelectElement;
+    const fontSizeControl = fixture.nativeElement.querySelector(
+      '#font-size-t1',
+    ) as HTMLSelectElement;
+    const textColorControl = fixture.nativeElement.querySelector(
+      '#text-color-t1',
+    ) as HTMLInputElement;
     const boldButton = fixture.nativeElement.querySelector('button[aria-label="Bold"]');
     const italicButton = fixture.nativeElement.querySelector('button[aria-label="Italic"]');
     const underlineButton = fixture.nativeElement.querySelector('button[aria-label="Underline"]');
+    const strikethroughButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Strikethrough"]',
+    );
+    const subscriptButton = fixture.nativeElement.querySelector('button[aria-label="Subscript"]');
+    const superscriptButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Superscript"]',
+    );
+    const quickColorButtons = fixture.nativeElement.querySelectorAll(
+      'button[aria-label^="Quick select color "]',
+    );
 
     fixture.componentInstance.updateTextStyle('t1', {
       fontFamily: fixture.componentInstance.fontFamilyOptions[1].value,
@@ -289,6 +305,12 @@ describe('NoteDetailsPageComponent', () => {
     expect(boldButton).toBeTruthy();
     expect(italicButton).toBeTruthy();
     expect(underlineButton).toBeTruthy();
+    expect(strikethroughButton).toBeTruthy();
+    expect(subscriptButton).toBeTruthy();
+    expect(superscriptButton).toBeTruthy();
+    expect(fontFamilyControl.options.length).toBeGreaterThan(3);
+    expect(fontSizeControl.options.length).toBeGreaterThan(10);
+    expect(quickColorButtons.length).toBeGreaterThan(3);
     expect(fixture.componentInstance.elements[0].fontSize).toBe(32);
     expect(fixture.componentInstance.elements[0].color).toBe('#ff0000');
     expect(fixture.componentInstance.elements[0].fontFamily).toBe(

@@ -25,6 +25,47 @@ import { Note, NoteTextElement } from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
 type CanvasTool = 'selection' | 'text';
+interface FontOption {
+  label: string;
+  value: string;
+}
+type QueryLocalFontsWindow = Window & {
+  queryLocalFonts?: () => Promise<{ family: string }[]>;
+};
+
+const FALLBACK_FONT_FAMILIES = [
+  'Arial',
+  'Arial Black',
+  'Calibri',
+  'Cambria',
+  'Candara',
+  'Comic Sans MS',
+  'Consolas',
+  'Courier New',
+  'Georgia',
+  'Helvetica',
+  'Impact',
+  'Inter',
+  'Lucida Console',
+  'Lucida Sans Unicode',
+  'Palatino Linotype',
+  'Segoe UI',
+  'Tahoma',
+  'Times New Roman',
+  'Trebuchet MS',
+  'Verdana',
+];
+const DEFAULT_QUICK_COLORS = [
+  '#111827',
+  '#ef4444',
+  '#f59e0b',
+  '#10b981',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#ffffff',
+];
+const COLOR_USAGE_STORAGE_KEY = 'raz-notes.text-color-usage';
 
 @Component({
   selector: 'app-note-details-page',
@@ -46,18 +87,14 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
   readonly defaultTextFontFamily = DEFAULT_TEXT_FONT_FAMILY;
   readonly defaultTextColor = '#111827';
-  readonly textToolbarWidth = 420;
+  readonly textToolbarWidth = 760;
   readonly textToolbarHeight = 48;
-  readonly fontSizeOptions = [16, 20, 24, 32, 40, 48];
-  readonly fontFamilyOptions = [
-    { label: 'Sans', value: DEFAULT_TEXT_FONT_FAMILY },
-    { label: 'Serif', value: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif' },
-    {
-      label: 'Mono',
-      value:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-    },
-  ];
+  readonly fontSizeOptions = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 60, 72, 96];
+  fontFamilyOptions: FontOption[] = FALLBACK_FONT_FAMILIES.map((family) => ({
+    label: family,
+    value: family,
+  }));
+  quickColorOptions = [...DEFAULT_QUICK_COLORS];
   pendingFiles: File[] = [];
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
@@ -77,12 +114,14 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   private viewStart = { x: 0, y: 0 };
   private elementStart = { x: 0, y: 0, width: DEFAULT_TEXT_ELEMENT_WIDTH, height: 0 };
   private editorSelectionRange: Range | null = null;
+  private readonly colorUsage = new Map<string, number>();
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
     this.isNewNote = routeId === null;
 
     if (!routeId) {
+      this.initializeColorUsage();
       return;
     }
 
@@ -97,6 +136,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.noteTitle = note.title;
     this.elements = note.elements.map((element) => ({ ...element }));
     this.selectedElementId = this.elements[0]?.id ?? null;
+    this.initializeColorUsage();
   }
 
   ngAfterViewInit(): void {
@@ -110,6 +150,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       this.viewY = rect.height / 2;
       this.changeDetectorRef.detectChanges();
     });
+    void this.loadFontFamilyOptions();
   }
 
   onFileChange(event: Event): void {
@@ -375,6 +416,11 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     return element.color ?? this.defaultTextColor;
   }
 
+  changeTextColor(elementId: string, color: string): void {
+    this.recordColorUsage(color);
+    this.updateTextStyle(elementId, { color });
+  }
+
   textToolbarY(element: NoteTextElement): number {
     return element.y - this.fontSizeFor(element) - this.textToolbarHeight - 18;
   }
@@ -451,6 +497,13 @@ export class NoteDetailsPageComponent implements AfterViewInit {
         }
         return;
     }
+  }
+
+  applyInlineTextCommand(
+    elementId: string,
+    command: 'strikeThrough' | 'subscript' | 'superscript',
+  ): void {
+    this.applyEditorCommand(elementId, command, true);
   }
 
   private addTextElement(x: number, y: number): void {
@@ -635,15 +688,13 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     elementId: string,
     command: 'bold' | 'italic' | 'underline',
   ): boolean {
-    return this.applyStyleToSelection(elementId, () => {
-      document.execCommand('styleWithCSS', false, 'true');
-      document.execCommand(command);
-    });
+    return this.applyEditorCommand(elementId, command, true);
   }
 
   private applyStyleToSelection(
     elementId: string,
     applySelectionCommand: (editor: HTMLDivElement) => void,
+    allowCollapsed = false,
   ): boolean {
     const editor = this.getInlineEditorElement(elementId);
     if (!editor || !this.restoreEditorSelection(editor)) {
@@ -651,7 +702,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    if (!selection || selection.rangeCount === 0 || (!allowCollapsed && selection.isCollapsed)) {
       return false;
     }
 
@@ -722,6 +773,98 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     if (editor.contains(range.commonAncestorContainer)) {
       this.editorSelectionRange = range.cloneRange();
     }
+  }
+
+  private applyEditorCommand(
+    elementId: string,
+    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
+    allowCollapsed = false,
+  ): boolean {
+    return this.applyStyleToSelection(
+      elementId,
+      () => {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand(command);
+      },
+      allowCollapsed,
+    );
+  }
+
+  private async loadFontFamilyOptions(): Promise<void> {
+    const queryLocalFonts = (window as QueryLocalFontsWindow).queryLocalFonts;
+    if (!queryLocalFonts) {
+      return;
+    }
+
+    try {
+      const fonts = await queryLocalFonts();
+      const families = [...new Set(fonts.map((font) => font.family).filter(Boolean))].sort(
+        (left, right) => left.localeCompare(right),
+      );
+      if (families.length === 0) {
+        return;
+      }
+
+      this.fontFamilyOptions = families.map((family) => ({ label: family, value: family }));
+      this.changeDetectorRef.detectChanges();
+    } catch {
+      this.fontFamilyOptions = [
+        { label: DEFAULT_TEXT_FONT_FAMILY, value: DEFAULT_TEXT_FONT_FAMILY },
+        ...FALLBACK_FONT_FAMILIES.map((family) => ({ label: family, value: family })),
+      ];
+    }
+  }
+
+  private initializeColorUsage(): void {
+    this.colorUsage.clear();
+
+    try {
+      const stored = localStorage.getItem(COLOR_USAGE_STORAGE_KEY);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          for (const [color, count] of Object.entries(parsed as Record<string, number>)) {
+            if (typeof color === 'string' && typeof count === 'number' && count > 0) {
+              this.colorUsage.set(color, count);
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore malformed stored color usage and rebuild from current elements.
+    }
+
+    for (const element of this.elements) {
+      if (element.color) {
+        this.colorUsage.set(element.color, (this.colorUsage.get(element.color) ?? 0) + 1);
+      }
+    }
+
+    this.refreshQuickColorOptions();
+  }
+
+  private recordColorUsage(color: string): void {
+    if (!color) {
+      return;
+    }
+
+    this.colorUsage.set(color, (this.colorUsage.get(color) ?? 0) + 1);
+    try {
+      localStorage.setItem(
+        COLOR_USAGE_STORAGE_KEY,
+        JSON.stringify(Object.fromEntries(this.colorUsage.entries())),
+      );
+    } catch {
+      // Ignore local storage quota or availability issues.
+    }
+    this.refreshQuickColorOptions();
+  }
+
+  private refreshQuickColorOptions(): void {
+    const rankedColors = [...this.colorUsage.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([color]) => color);
+    this.quickColorOptions = [...new Set([...rankedColors, ...DEFAULT_QUICK_COLORS])].slice(0, 8);
   }
 
   private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {
