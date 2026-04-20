@@ -180,6 +180,7 @@ describe('NoteDetailsPageComponent', () => {
     ) as HTMLTextAreaElement;
 
     expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
+    expect(fixture.componentInstance.activeTool).toBe('selection');
     expect(fixture.componentInstance.editingElementId).toBe(
       fixture.componentInstance.elements.at(-1)!.id,
     );

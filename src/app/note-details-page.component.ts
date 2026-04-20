@@ -356,6 +356,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       width: DEFAULT_TEXT_ELEMENT_WIDTH,
     });
     this.elements = [...this.elements, element];
+    this.activeTool = 'selection';
     this.selectedElementId = element.id;
     this.startEditingElement(element.id, 'all');
   }
