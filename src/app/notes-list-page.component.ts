@@ -3,7 +3,11 @@ import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
-import { computeNoteViewBox, estimateTextElementHeight } from './note-svg.utils';
+import {
+  computeNoteViewBox,
+  DEFAULT_TEXT_FONT_SIZE,
+  estimateTextElementHeight,
+} from './note-svg.utils';
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
 import { Note, NoteTextElement } from './storage.service';
@@ -11,11 +15,12 @@ import { Note, NoteTextElement } from './storage.service';
 @Component({
   selector: 'app-notes-list-page',
   imports: [DatePipe, RouterLink, AttachmentViewerComponent],
-  templateUrl: './notes-list-page.component.html'
+  templateUrl: './notes-list-page.component.html',
 })
 export class NotesListPageComponent {
   readonly auth = inject(AuthService);
   readonly notesState = inject(NotesStateService);
+  readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
   passwordlessError = '';
   noteActionError = '';
 

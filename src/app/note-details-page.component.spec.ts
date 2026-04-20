@@ -12,26 +12,30 @@ class MockNotesStateService {
     elements: [{ id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 }],
     createdAt: '2026-04-19T00:00:00.000Z',
     lastModifiedAt: '2026-04-19T00:00:00.000Z',
-    attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
+    attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
   };
 
   getNote(noteId: number): Note | undefined {
     return noteId === this.note.id ? this.note : undefined;
   }
 
-  updateNote = jasmine.createSpy('updateNote').and.callFake(async (_noteId: number, input: { title: string }) => ({
-    ...this.note,
-    title: input.title,
-    lastModifiedAt: '2026-04-19T02:00:00.000Z'
-  }));
+  updateNote = jasmine
+    .createSpy('updateNote')
+    .and.callFake(async (_noteId: number, input: { title: string }) => ({
+      ...this.note,
+      title: input.title,
+      lastModifiedAt: '2026-04-19T02:00:00.000Z',
+    }));
 
   createNote = jasmine.createSpy('createNote');
   deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
-  deleteAttachment = jasmine.createSpy('deleteAttachment').and.callFake(async (_noteId: number, attachmentId: string) => ({
-    ...this.note,
-    attachments: this.note.attachments.filter((attachment) => attachment.id !== attachmentId),
-    lastModifiedAt: '2026-04-19T03:00:00.000Z'
-  }));
+  deleteAttachment = jasmine
+    .createSpy('deleteAttachment')
+    .and.callFake(async (_noteId: number, attachmentId: string) => ({
+      ...this.note,
+      attachments: this.note.attachments.filter((attachment) => attachment.id !== attachmentId),
+      lastModifiedAt: '2026-04-19T03:00:00.000Z',
+    }));
 }
 
 describe('NoteDetailsPageComponent', () => {
@@ -46,18 +50,18 @@ describe('NoteDetailsPageComponent', () => {
           useValue: {
             snapshot: {
               paramMap: {
-                get: (key: string) => (key === 'id' ? '7' : null)
-              }
-            }
-          }
+                get: (key: string) => (key === 'id' ? '7' : null),
+              },
+            },
+          },
         },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
-            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' }))
-          })
-        }
-      ]
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(NoteDetailsPageComponent);
@@ -103,8 +107,8 @@ describe('NoteDetailsPageComponent', () => {
       ...notesState.note,
       elements: [
         { id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 },
-        { id: 't2', text: 'Second', x: 60, y: 60, width: 180, fontSize: 24 }
-      ]
+        { id: 't2', text: 'Second', x: 60, y: 60, width: 180, fontSize: 24 },
+      ],
     };
     const fixture = await createComponent(notesState);
 
@@ -113,9 +117,9 @@ describe('NoteDetailsPageComponent', () => {
         button: 0,
         clientX: 10,
         clientY: 10,
-        stopPropagation: () => undefined
-    } as PointerEvent,
-      't2'
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      't2',
     );
     fixture.componentInstance.onDocumentPointerUp({} as PointerEvent);
     fixture.detectChanges();
@@ -135,16 +139,16 @@ describe('NoteDetailsPageComponent', () => {
         bubbles: true,
         button: 0,
         clientX: 10,
-        clientY: 10
-      })
+        clientY: 10,
+      }),
     );
     document.dispatchEvent(
       new PointerEvent('pointerup', {
         bubbles: true,
         button: 0,
         clientX: 10,
-        clientY: 10
-      })
+        clientY: 10,
+      }),
     );
     fixture.detectChanges();
     await fixture.whenStable();
@@ -162,21 +166,23 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.onCanvasPointerDown({
       button: 0,
       clientX: 100,
-      clientY: 120
+      clientY: 120,
     } as PointerEvent);
     fixture.componentInstance.onDocumentPointerUp({
       clientX: 100,
-      clientY: 120
+      clientY: 120,
     } as PointerEvent);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const editor = fixture.nativeElement.querySelector(
-      `#${fixture.componentInstance.inlineEditorId(fixture.componentInstance.elements.at(-1)!.id)}`
+      `#${fixture.componentInstance.inlineEditorId(fixture.componentInstance.elements.at(-1)!.id)}`,
     ) as HTMLTextAreaElement;
 
     expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
-    expect(fixture.componentInstance.editingElementId).toBe(fixture.componentInstance.elements.at(-1)!.id);
+    expect(fixture.componentInstance.editingElementId).toBe(
+      fixture.componentInstance.elements.at(-1)!.id,
+    );
     expect(selectSpy).toHaveBeenCalled();
     expect(document.activeElement).toBe(editor);
   });
@@ -188,11 +194,11 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.onCanvasPointerDown({
       button: 0,
       clientX: 100,
-      clientY: 120
+      clientY: 120,
     } as PointerEvent);
     fixture.componentInstance.onDocumentPointerUp({
       clientX: 100,
-      clientY: 120
+      clientY: 120,
     } as PointerEvent);
 
     expect(fixture.componentInstance.elements.length).toBe(initialCount);
@@ -203,7 +209,7 @@ describe('NoteDetailsPageComponent', () => {
 
     fixture.componentInstance.onTextDoubleClick(
       { stopPropagation: () => undefined } as MouseEvent,
-      't1'
+      't1',
     );
     fixture.detectChanges();
     await fixture.whenStable();
@@ -217,14 +223,14 @@ describe('NoteDetailsPageComponent', () => {
 
     fixture.componentInstance.onTextDoubleClick(
       { stopPropagation: () => undefined } as MouseEvent,
-      't1'
+      't1',
     );
     fixture.componentInstance.updateEditingText('t1', 'Line 1\nLine 2');
 
     expect(fixture.componentInstance.elements[0].text).toBe('Line 1\nLine 2');
   });
 
-  it('resizes the selected element horizontally and vertically', async () => {
+  it('resizes the selected element without changing its font size', async () => {
     const fixture = await createComponent();
 
     fixture.componentInstance.onResizeHandlePointerDown(
@@ -232,17 +238,22 @@ describe('NoteDetailsPageComponent', () => {
         button: 0,
         clientX: 10,
         clientY: 10,
-        stopPropagation: () => undefined
+        stopPropagation: () => undefined,
       } as PointerEvent,
-      't1'
+      't1',
     );
     fixture.componentInstance.onDocumentPointerMove({
       clientX: 50,
-      clientY: 42
+      clientY: 42,
     } as PointerEvent);
 
     expect(fixture.componentInstance.elements[0].width).toBeGreaterThan(180);
-    expect(fixture.componentInstance.elements[0].fontSize).toBeGreaterThan(24);
+    expect(fixture.componentInstance.elements[0].height).toBeGreaterThan(
+      fixture.componentInstance.textFontSize * 1.6,
+    );
+    expect(fixture.componentInstance.elements[0].fontSize).toBe(
+      fixture.componentInstance.textFontSize,
+    );
   });
 
   it('deletes the selected text element with the delete key', async () => {
@@ -251,8 +262,8 @@ describe('NoteDetailsPageComponent', () => {
       ...notesState.note,
       elements: [
         { id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 },
-        { id: 't2', text: 'Second', x: 60, y: 60, width: 180, fontSize: 24 }
-      ]
+        { id: 't2', text: 'Second', x: 60, y: 60, width: 180, fontSize: 24 },
+      ],
     };
     const fixture = await createComponent(notesState);
     const preventDefault = jasmine.createSpy('preventDefault');
@@ -260,7 +271,7 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.selectedElementId = 't2';
     fixture.componentInstance.onDocumentKeyDown({
       key: 'Delete',
-      preventDefault
+      preventDefault,
     } as unknown as KeyboardEvent);
 
     expect(preventDefault).toHaveBeenCalled();

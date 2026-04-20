@@ -19,10 +19,12 @@ class MockAuthService {
   readonly loginTimeout = signal<LoginTimeoutOption>('1-hour');
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
   readonly canUsePasswordless = computed(
-    () => this.passwordlessAvailable() && this.passwordlessEnrolled()
+    () => this.passwordlessAvailable() && this.passwordlessEnrolled(),
   );
 
-  async init(): Promise<void> {}
+  async init(): Promise<void> {
+    return Promise.resolve();
+  }
   async createAccount(username: string): Promise<void> {
     this.storedUsername.set(username.trim());
     this.status.set('unlocked');
@@ -62,8 +64,8 @@ class MockNotesStateService {
       elements: [{ id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
-      attachments: []
-    }
+      attachments: [],
+    },
   ]);
   readonly notesByUpdatedAt = computed(() => this.notes());
   readonly notesByTitle = computed(() => this.notes());
@@ -90,11 +92,11 @@ describe('App', () => {
           { path: 'notes', component: DummyRouteComponent },
           { path: 'notes/new', component: DummyRouteComponent },
           { path: 'notes/:id', component: DummyRouteComponent },
-          { path: 'settings', component: DummyRouteComponent }
+          { path: 'settings', component: DummyRouteComponent },
         ]),
         { provide: AuthService, useValue: mockAuth },
-        { provide: NotesStateService, useValue: mockNotesState }
-      ]
+        { provide: NotesStateService, useValue: mockNotesState },
+      ],
     }).compileComponents();
   });
 
@@ -137,7 +139,7 @@ describe('App', () => {
     await fixture.whenStable();
 
     const mobileMenuButton = fixture.nativeElement.querySelector(
-      'button[aria-label="Open navigation menu"]'
+      'button[aria-label="Open navigation menu"]',
     );
 
     expect(mobileMenuButton).toBeTruthy();
@@ -173,6 +175,8 @@ describe('App', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.mobileMenuOpen()).toBeTrue();
-    expect(fixture.nativeElement.querySelector('button[aria-label="Close navigation menu"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Close navigation menu"]'),
+    ).toBeTruthy();
   });
 });

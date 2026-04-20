@@ -1,10 +1,23 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
-import { estimateTextElementHeight } from './note-svg.utils';
+import {
+  DEFAULT_TEXT_ELEMENT_WIDTH,
+  DEFAULT_TEXT_FONT_SIZE,
+  estimateTextElementHeight,
+  normalizeNoteTextElement,
+} from './note-svg.utils';
 import { Note, NoteTextElement } from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
@@ -13,7 +26,7 @@ type CanvasTool = 'selection' | 'text';
 @Component({
   selector: 'app-note-details-page',
   imports: [FormsModule, DatePipe, RouterLink, AttachmentViewerComponent],
-  templateUrl: './note-details-page.component.html'
+  templateUrl: './note-details-page.component.html',
 })
 export class NoteDetailsPageComponent implements AfterViewInit {
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
@@ -26,6 +39,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   isNewNote = false;
   noteTitle = '';
   elements: NoteTextElement[] = [];
+  readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
   pendingFiles: File[] = [];
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
@@ -43,7 +57,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   private activeElementId: string | null = null;
   private pointerStart = { x: 0, y: 0 };
   private viewStart = { x: 0, y: 0 };
-  private elementStart = { x: 0, y: 0, width: 180, fontSize: 24 };
+  private elementStart = { x: 0, y: 0, width: DEFAULT_TEXT_ELEMENT_WIDTH, height: 0 };
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -100,9 +114,9 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       const created = await this.notesState.createNote(
         {
           title,
-          elements: this.elements
+          elements: this.elements,
         },
-        this.pendingFiles
+        this.pendingFiles,
       );
       void this.router.navigate(['/notes', created.id]);
       return;
@@ -115,7 +129,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
     this.note = await this.notesState.updateNote(this.note.id, {
       title,
-      elements: this.elements
+      elements: this.elements,
     });
   }
 
@@ -178,7 +192,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       x: element.x,
       y: element.y,
       width: element.width,
-      fontSize: element.fontSize
+      height: this.estimateElementHeight(element),
     };
   }
 
@@ -210,7 +224,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       x: element.x,
       y: element.y,
       width: element.width,
-      fontSize: element.fontSize
+      height: this.estimateElementHeight(element),
     };
   }
 
@@ -254,14 +268,14 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     if (this.interactionMode === 'drag') {
       this.updateElement(element.id, {
         x: this.elementStart.x + dx / this.scale,
-        y: this.elementStart.y + dy / this.scale
+        y: this.elementStart.y + dy / this.scale,
       });
       return;
     }
 
     this.updateElement(element.id, {
       width: Math.max(100, this.elementStart.width + dx / this.scale),
-      fontSize: Math.max(14, this.elementStart.fontSize + dy / (this.scale * 4))
+      height: Math.max(48, this.elementStart.height + dy / this.scale),
     });
   }
 
@@ -319,7 +333,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   }
 
   selectedElement(): NoteTextElement | null {
-    return this.selectedElementId ? this.getElement(this.selectedElementId) ?? null : null;
+    return this.selectedElementId ? (this.getElement(this.selectedElementId) ?? null) : null;
   }
 
   setActiveTool(tool: CanvasTool): void {
@@ -334,14 +348,13 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   }
 
   private addTextElement(x: number, y: number): void {
-    const element: NoteTextElement = {
+    const element = normalizeNoteTextElement({
       id: crypto.randomUUID(),
       text: 'New text',
       x,
       y,
-      width: 180,
-      fontSize: 24
-    };
+      width: DEFAULT_TEXT_ELEMENT_WIDTH,
+    });
     this.elements = [...this.elements, element];
     this.selectedElementId = element.id;
     this.startEditingElement(element.id, 'all');
@@ -377,10 +390,14 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   private updateElement(elementId: string, patch: Partial<NoteTextElement>): void {
     this.elements = this.elements.map((element) =>
-      element.id === elementId ? { ...element, ...patch } : element
+      element.id === elementId ? { ...element, ...patch } : element,
     );
     if (this.note) {
-      this.note = { ...this.note, elements: this.elements, lastModifiedAt: new Date().toISOString() };
+      this.note = {
+        ...this.note,
+        elements: this.elements,
+        lastModifiedAt: new Date().toISOString(),
+      };
     }
   }
 
@@ -391,7 +408,11 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       this.editingElementId = null;
     }
     if (this.note) {
-      this.note = { ...this.note, elements: this.elements, lastModifiedAt: new Date().toISOString() };
+      this.note = {
+        ...this.note,
+        elements: this.elements,
+        lastModifiedAt: new Date().toISOString(),
+      };
     }
   }
 
@@ -427,7 +448,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
     return {
       x: (event.clientX - rect.left - this.viewX) / this.scale,
-      y: (event.clientY - rect.top - this.viewY) / this.scale
+      y: (event.clientY - rect.top - this.viewY) / this.scale,
     };
   }
 }

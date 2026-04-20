@@ -3,7 +3,9 @@
   [class.mx-auto]="!isNoteEditorRoute()"
   [class.max-w-6xl]="!isNoteEditorRoute()"
 >
-  <header class="mb-4 rounded-lg border border-theme-border bg-theme-brand px-4 py-3 shadow-sm shadow-theme-brand/20">
+  <header
+    class="mb-4 rounded-lg border border-theme-border bg-theme-brand px-4 py-3 shadow-sm shadow-theme-brand/20"
+  >
     <div class="flex items-start justify-between gap-3">
       <div class="flex items-start gap-3">
         @if (auth.isUnlocked()) {
@@ -21,7 +23,9 @@
 
         <div>
           <h1 class="text-2xl font-bold text-theme-on-brand lg:text-3xl">Raz Notes</h1>
-          <p class="mt-1 hidden text-theme-on-brand/80 lg:block">Offline-first notes with local encrypted storage.</p>
+          <p class="mt-1 hidden text-theme-on-brand/80 lg:block">
+            Offline-first notes with local encrypted storage.
+          </p>
         </div>
       </div>
 
@@ -40,18 +44,27 @@
   </header>
 
   @if (auth.status() === 'initializing') {
-    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+    <section
+      class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
+    >
       <p class="text-sm text-theme-muted">Loading secure local vault…</p>
     </section>
   } @else if (auth.status() === 'setup-required') {
-    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+    <section
+      class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
+    >
       <h2 class="mb-2 text-xl font-semibold text-theme-text">Create your local account</h2>
       <p class="mb-4 text-sm text-theme-muted">
-        This account is created entirely offline. Your password protects note and attachment data stored on this device.
+        This account is created entirely offline. Your password protects note and attachment data
+        stored on this device.
       </p>
 
       @if (authError) {
-        <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ authError }}</p>
+        <p
+          class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+        >
+          {{ authError }}
+        </p>
       }
 
       <form (ngSubmit)="setupAccount()" class="flex max-w-md flex-col gap-3">
@@ -82,7 +95,9 @@
         </div>
 
         <div class="flex flex-col gap-1">
-          <label for="setupPasswordConfirm" class="text-sm font-medium text-theme-text">Confirm password</label>
+          <label for="setupPasswordConfirm" class="text-sm font-medium text-theme-text"
+            >Confirm password</label
+          >
           <input
             id="setupPasswordConfirm"
             name="setupPasswordConfirm"
@@ -102,20 +117,28 @@
       </form>
     </section>
   } @else if (auth.status() === 'locked') {
-    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+    <section
+      class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
+    >
       <h2 class="mb-2 text-xl font-semibold text-theme-text">Unlock your notes</h2>
       <p class="mb-4 text-sm text-theme-muted">
         Sign in locally to decrypt your notes and attachments. No internet connection is required.
       </p>
 
       @if (auth.storedUsername()) {
-        <p class="mb-3 rounded border border-theme-border bg-theme-brand-soft px-3 py-2 text-sm text-theme-text">
+        <p
+          class="mb-3 rounded border border-theme-border bg-theme-brand-soft px-3 py-2 text-sm text-theme-text"
+        >
           Local account: {{ auth.storedUsername() }}
         </p>
       }
 
       @if (authError) {
-        <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ authError }}</p>
+        <p
+          class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+        >
+          {{ authError }}
+        </p>
       }
 
       @if (auth.canUsePasswordless()) {
@@ -130,8 +153,11 @@
           </button>
         </div>
       } @else if (auth.passwordlessEnrolled() && !auth.passwordlessAvailable()) {
-        <p class="mb-4 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
-          Device unlock was enabled before, but this browser cannot use it right now. Use your password instead.
+        <p
+          class="mb-4 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+        >
+          Device unlock was enabled before, but this browser cannot use it right now. Use your
+          password instead.
         </p>
       }
 
@@ -207,7 +233,9 @@
                 <button
                   type="button"
                   (click)="toggleNotesMenu()"
-                  [attr.aria-label]="notesMenuExpanded() ? 'Collapse notes menu' : 'Expand notes menu'"
+                  [attr.aria-label]="
+                    notesMenuExpanded() ? 'Collapse notes menu' : 'Expand notes menu'
+                  "
                   class="px-2 text-sm text-theme-muted hover:text-theme-accent"
                 >
                   {{ notesMenuExpanded() ? '▾' : '▸' }}
@@ -279,7 +307,9 @@
                 <button
                   type="button"
                   (click)="toggleNotesMenu()"
-                  [attr.aria-label]="notesMenuExpanded() ? 'Collapse notes menu' : 'Expand notes menu'"
+                  [attr.aria-label]="
+                    notesMenuExpanded() ? 'Collapse notes menu' : 'Expand notes menu'
+                  "
                   class="px-2 text-sm text-theme-muted hover:text-theme-accent"
                 >
                   {{ notesMenuExpanded() ? '▾' : '▸' }}
@@ -327,7 +357,9 @@
 
       <section class="min-w-0 flex-1 lg:pl-0">
         @if (authError) {
-          <section class="mb-4 rounded-lg border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
+          <section
+            class="mb-4 rounded-lg border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+          >
             {{ authError }}
           </section>
         }
