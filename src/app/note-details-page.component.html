@@ -104,7 +104,9 @@
                 rx="12"
                 fill="transparent"
                 stroke="rgb(var(--theme-accent) / 0.7)"
+                [attr.stroke-dasharray]="selectedElementId === element.id ? '8 6' : null"
                 [attr.stroke-width]="selectedElementId === element.id ? 1.5 / scale : 0"
+                [style.cursor]="activeTool === 'selection' ? 'move' : 'default'"
                 (pointerdown)="onTextPointerDown($event, element.id)"
                 (dblclick)="onTextDoubleClick($event, element.id)"
               />
@@ -122,6 +124,7 @@
                     [ngModel]="element.text"
                     (ngModelChange)="updateEditingText(element.id, $event)"
                     (pointerdown)="onInlineEditorPointerDown($event, element.id)"
+                    (focus)="onInlineEditorFocus(element.id, $event)"
                     (blur)="stopEditingElement()"
                     class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
                     [style.fontSize.px]="element.fontSize"
@@ -134,6 +137,7 @@
                     class="select-none whitespace-pre-wrap break-words text-theme-text"
                     [style.fontSize.px]="element.fontSize"
                     [style.lineHeight]="1.35"
+                    [style.cursor]="activeTool === 'selection' ? 'move' : 'default'"
                     (pointerdown)="onTextPointerDown($event, element.id)"
                     (dblclick)="onTextDoubleClick($event, element.id)"
                   >
@@ -147,6 +151,7 @@
                   [attr.cy]="element.y + estimateElementHeight(element) + 4"
                   [attr.r]="8 / scale"
                   fill="rgb(var(--theme-accent) / 1)"
+                  style="cursor: nwse-resize"
                   (pointerdown)="onResizeHandlePointerDown($event, element.id)"
                 />
               }
