@@ -1,18 +1,22 @@
-import { Component, ElementRef, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
-import { Note, NoteKind } from './storage.service';
+import { estimateTextElementHeight } from './note-svg.utils';
+import { Note, NoteTextElement } from './storage.service';
 import { NotesStateService } from './notes-state.service';
+
+type CanvasTool = 'selection' | 'text';
 
 @Component({
   selector: 'app-note-details-page',
   imports: [FormsModule, DatePipe, RouterLink, AttachmentViewerComponent],
   templateUrl: './note-details-page.component.html'
 })
-export class NoteDetailsPageComponent {
+export class NoteDetailsPageComponent implements AfterViewInit {
+  private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notesState = inject(NotesStateService);
@@ -20,13 +24,25 @@ export class NoteDetailsPageComponent {
   note: Note | null = null;
   noteError = '';
   isNewNote = false;
-  noteKind: NoteKind = 'text';
   noteTitle = '';
-  noteText = '';
-  todoText = '';
+  elements: NoteTextElement[] = [];
   pendingFiles: File[] = [];
+  selectedElementId: string | null = null;
+  editingElementId: string | null = null;
+  activeTool: CanvasTool = 'selection';
+  viewX = 480;
+  viewY = 280;
+  scale = 1;
 
   @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('svgHost') svgHostRef?: ElementRef<SVGSVGElement>;
+
+  private interactionMode: 'none' | 'canvas' | 'drag' | 'resize' = 'none';
+  private interactionMoved = false;
+  private activeElementId: string | null = null;
+  private pointerStart = { x: 0, y: 0 };
+  private viewStart = { x: 0, y: 0 };
+  private elementStart = { x: 0, y: 0, width: 180, fontSize: 24 };
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -44,10 +60,22 @@ export class NoteDetailsPageComponent {
     }
 
     this.note = note;
-    this.noteKind = note.kind;
     this.noteTitle = note.title;
-    this.noteText = note.text ?? '';
-    this.todoText = note.todos?.join('\n') ?? '';
+    this.elements = note.elements.map((element) => ({ ...element }));
+    this.selectedElementId = this.elements[0]?.id ?? null;
+  }
+
+  ngAfterViewInit(): void {
+    queueMicrotask(() => {
+      const rect = this.svgHostRef?.nativeElement.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      this.viewX = rect.width / 2;
+      this.viewY = rect.height / 2;
+      this.changeDetectorRef.detectChanges();
+    });
   }
 
   onFileChange(event: Event): void {
@@ -62,28 +90,16 @@ export class NoteDetailsPageComponent {
       this.noteError = 'Title is required.';
       return;
     }
-
-    if (this.noteKind === 'text') {
-      const text = this.noteText.trim();
-      if (!text) {
-        this.noteError = 'Text is required for plain text notes.';
-        return;
-      }
-    } else {
-      const todos = this.todoItems();
-      if (todos.length === 0) {
-        this.noteError = 'Add at least one todo item.';
-        return;
-      }
+    if (this.elements.length === 0) {
+      this.noteError = 'Add at least one text item to the note.';
+      return;
     }
 
     if (this.isNewNote) {
       const created = await this.notesState.createNote(
         {
-          kind: this.noteKind,
           title,
-          text: this.noteKind === 'text' ? this.noteText : undefined,
-          todos: this.noteKind === 'todo' ? this.todoItems() : undefined
+          elements: this.elements
         },
         this.pendingFiles
       );
@@ -97,10 +113,8 @@ export class NoteDetailsPageComponent {
     }
 
     this.note = await this.notesState.updateNote(this.note.id, {
-      kind: this.noteKind,
       title,
-      text: this.noteKind === 'text' ? this.noteText : undefined,
-      todos: this.noteKind === 'todo' ? this.todoItems() : undefined
+      elements: this.elements
     });
   }
 
@@ -127,16 +141,272 @@ export class NoteDetailsPageComponent {
     }
   }
 
+  onCanvasPointerDown(event: PointerEvent): void {
+    if (event.button !== 0) {
+      return;
+    }
+
+    this.interactionMode = 'canvas';
+    this.interactionMoved = false;
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.viewStart = { x: this.viewX, y: this.viewY };
+    this.activeElementId = null;
+  }
+
+  onTextPointerDown(event: PointerEvent, elementId: string): void {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const element = this.getElement(elementId);
+    if (!element) {
+      return;
+    }
+
+    event.stopPropagation();
+    if (this.activeTool !== 'selection') {
+      return;
+    }
+
+    this.selectedElementId = elementId;
+    this.activeElementId = elementId;
+    this.interactionMode = 'drag';
+    this.interactionMoved = false;
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.elementStart = {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      fontSize: element.fontSize
+    };
+  }
+
+  onTextDoubleClick(event: MouseEvent, elementId: string): void {
+    event.stopPropagation();
+    this.startEditingElement(elementId);
+  }
+
+  onResizeHandlePointerDown(event: PointerEvent, elementId: string): void {
+    if (event.button !== 0) {
+      return;
+    }
+    if (this.activeTool !== 'selection') {
+      return;
+    }
+
+    const element = this.getElement(elementId);
+    if (!element) {
+      return;
+    }
+
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+    this.activeElementId = elementId;
+    this.interactionMode = 'resize';
+    this.interactionMoved = false;
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.elementStart = {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      fontSize: element.fontSize
+    };
+  }
+
+  onCanvasWheel(event: WheelEvent): void {
+    event.preventDefault();
+    const point = this.pointerToCanvas(event);
+    const nextScale = Math.min(6, Math.max(0.25, this.scale * (event.deltaY < 0 ? 1.1 : 0.9)));
+    if (nextScale === this.scale || !this.svgHostRef) {
+      return;
+    }
+
+    const rect = this.svgHostRef.nativeElement.getBoundingClientRect();
+    this.viewX = event.clientX - rect.left - point.x * nextScale;
+    this.viewY = event.clientY - rect.top - point.y * nextScale;
+    this.scale = nextScale;
+  }
+
+  @HostListener('document:pointermove', ['$event'])
+  onDocumentPointerMove(event: PointerEvent): void {
+    if (this.interactionMode === 'none') {
+      return;
+    }
+
+    const dx = event.clientX - this.pointerStart.x;
+    const dy = event.clientY - this.pointerStart.y;
+    if (!this.interactionMoved && Math.abs(dx) + Math.abs(dy) > 3) {
+      this.interactionMoved = true;
+    }
+
+    if (this.interactionMode === 'canvas') {
+      this.viewX = this.viewStart.x + dx;
+      this.viewY = this.viewStart.y + dy;
+      return;
+    }
+
+    const element = this.activeElementId ? this.getElement(this.activeElementId) : null;
+    if (!element) {
+      return;
+    }
+
+    if (this.interactionMode === 'drag') {
+      this.updateElement(element.id, {
+        x: this.elementStart.x + dx / this.scale,
+        y: this.elementStart.y + dy / this.scale
+      });
+      return;
+    }
+
+    this.updateElement(element.id, {
+      width: Math.max(100, this.elementStart.width + dx / this.scale),
+      fontSize: Math.max(14, this.elementStart.fontSize + dx / (this.scale * 8))
+    });
+  }
+
+  @HostListener('document:pointerup', ['$event'])
+  onDocumentPointerUp(event: PointerEvent): void {
+    if (this.interactionMode === 'canvas' && !this.interactionMoved) {
+      if (this.activeTool === 'text') {
+        const point = this.pointerToCanvas(event);
+        this.addTextElement(point.x, point.y);
+      } else {
+        this.selectedElementId = null;
+        this.editingElementId = null;
+      }
+    } else if (
+      this.interactionMode === 'drag' &&
+      !this.interactionMoved &&
+      this.activeTool === 'selection' &&
+      this.activeElementId
+    ) {
+      this.startEditingElement(this.activeElementId);
+    }
+
+    this.interactionMode = 'none';
+    this.activeElementId = null;
+    this.interactionMoved = false;
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeyDown(event: KeyboardEvent): void {
+    if (!this.selectedElementId || (event.key !== 'Delete' && event.key !== 'Backspace')) {
+      return;
+    }
+
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    this.deleteElement(this.selectedElementId);
+  }
+
   formatFileSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  private todoItems(): string[] {
-    return this.todoText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+  estimateElementHeight(element: NoteTextElement): number {
+    return estimateTextElementHeight(element);
+  }
+
+  selectedElement(): NoteTextElement | null {
+    return this.selectedElementId ? this.getElement(this.selectedElementId) ?? null : null;
+  }
+
+  setActiveTool(tool: CanvasTool): void {
+    this.activeTool = tool;
+    if (tool !== 'selection') {
+      this.editingElementId = null;
+    }
+  }
+
+  updateEditingText(elementId: string, text: string): void {
+    this.updateElement(elementId, { text });
+  }
+
+  private addTextElement(x: number, y: number): void {
+    const element: NoteTextElement = {
+      id: crypto.randomUUID(),
+      text: 'New text',
+      x,
+      y,
+      width: 180,
+      fontSize: 24
+    };
+    this.elements = [...this.elements, element];
+    this.selectedElementId = element.id;
+  }
+
+  onInlineEditorPointerDown(event: PointerEvent, elementId: string): void {
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+  }
+
+  stopEditingElement(): void {
+    this.editingElementId = null;
+  }
+
+  private updateElement(elementId: string, patch: Partial<NoteTextElement>): void {
+    this.elements = this.elements.map((element) =>
+      element.id === elementId ? { ...element, ...patch } : element
+    );
+    if (this.note) {
+      this.note = { ...this.note, elements: this.elements, lastModifiedAt: new Date().toISOString() };
+    }
+  }
+
+  private deleteElement(elementId: string): void {
+    this.elements = this.elements.filter((element) => element.id !== elementId);
+    this.selectedElementId = this.elements[0]?.id ?? null;
+    if (this.editingElementId === elementId) {
+      this.editingElementId = null;
+    }
+    if (this.note) {
+      this.note = { ...this.note, elements: this.elements, lastModifiedAt: new Date().toISOString() };
+    }
+  }
+
+  private getElement(elementId: string): NoteTextElement | undefined {
+    return this.elements.find((element) => element.id === elementId);
+  }
+
+  inlineEditorId(elementId: string): string {
+    return `text-editor-${elementId}`;
+  }
+
+  private startEditingElement(elementId: string): void {
+    if (!this.getElement(elementId)) {
+      return;
+    }
+
+    this.selectedElementId = elementId;
+    this.editingElementId = elementId;
+    queueMicrotask(() => {
+      const input = document.getElementById(this.inlineEditorId(elementId));
+      if (input instanceof HTMLTextAreaElement) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    });
+  }
+
+  private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {
+    const rect = this.svgHostRef?.nativeElement.getBoundingClientRect();
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: (event.clientX - rect.left - this.viewX) / this.scale,
+      y: (event.clientY - rect.top - this.viewY) / this.scale
+    };
   }
 }

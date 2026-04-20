@@ -10,8 +10,6 @@ import {
   utf8ToBytes
 } from './crypto.utils';
 
-export type NoteKind = 'text' | 'todo';
-
 export interface Attachment {
   id: string;
   name: string;
@@ -19,12 +17,19 @@ export interface Attachment {
   size: number;
 }
 
+export interface NoteTextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  fontSize: number;
+}
+
 export interface Note {
   id: number;
-  kind: NoteKind;
   title: string;
-  text?: string;
-  todos?: string[];
+  elements: NoteTextElement[];
   createdAt: string;
   lastModifiedAt: string;
   attachments: Attachment[];
@@ -190,14 +195,72 @@ export class StorageService {
   private parseNotes(text: string): Note[] {
     const parsed: unknown = JSON.parse(text);
     if (Array.isArray(parsed)) {
-      return parsed.map((note) => ({
-        ...(note as Note),
-        lastModifiedAt: (note as Note).lastModifiedAt ?? (note as Note).createdAt,
-        attachments: (note as Note).attachments ?? []
-      }));
+      return parsed.map((note) => this.normalizeNote(note as Partial<Note> & Record<string, unknown>));
     }
 
     throw new Error('Stored notes data is invalid.');
+  }
+
+  private normalizeNote(note: Partial<Note> & Record<string, unknown>): Note {
+    return {
+      id: note.id as number,
+      title: typeof note.title === 'string' ? note.title : 'Untitled note',
+      createdAt: note.createdAt as string,
+      lastModifiedAt: (note.lastModifiedAt as string | undefined) ?? (note.createdAt as string),
+      attachments: Array.isArray(note.attachments) ? (note.attachments as Attachment[]) : [],
+      elements: this.normalizeElements(note)
+    };
+  }
+
+  private normalizeElements(note: Partial<Note> & Record<string, unknown>): NoteTextElement[] {
+    if (Array.isArray(note.elements)) {
+      return note.elements.map((element, index) =>
+        this.normalizeElement(element as unknown as Record<string, unknown>, index)
+      );
+    }
+
+    return this.migrateLegacyContentToElements(note);
+  }
+
+  private normalizeElement(element: Record<string, unknown>, index: number): NoteTextElement {
+    return {
+      id: typeof element['id'] === 'string' ? (element['id'] as string) : `text-${index}`,
+      text: typeof element['text'] === 'string' ? (element['text'] as string) : 'New text',
+      x: typeof element['x'] === 'number' ? (element['x'] as number) : 0,
+      y: typeof element['y'] === 'number' ? (element['y'] as number) : 0,
+      width: typeof element['width'] === 'number' ? (element['width'] as number) : 180,
+      fontSize: typeof element['fontSize'] === 'number' ? (element['fontSize'] as number) : 24
+    };
+  }
+
+  private migrateLegacyContentToElements(note: Record<string, unknown>): NoteTextElement[] {
+    if (typeof note['text'] === 'string' && note['text'].trim()) {
+      return [
+        {
+          id: crypto.randomUUID(),
+          text: note['text'].trim(),
+          x: 0,
+          y: 0,
+          width: 280,
+          fontSize: 24
+        }
+      ];
+    }
+
+    if (Array.isArray(note['todos']) && note['todos'].length > 0) {
+      return [
+        {
+          id: crypto.randomUUID(),
+          text: (note['todos'] as string[]).map((item) => `• ${item}`).join('\n'),
+          x: 0,
+          y: 0,
+          width: 280,
+          fontSize: 24
+        }
+      ];
+    }
+
+    return [];
   }
 
   private parseEncryptedPayload(text: string): EncryptedPayload {

@@ -37,9 +37,8 @@ describe('NotesStateService', () => {
   it('loads notes from storage', async () => {
     const note: Note = {
       id: 1,
-      kind: 'text',
       title: 'Saved',
-      text: 'Persisted',
+      elements: [{ id: 't1', text: 'Persisted', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
       attachments: []
@@ -53,7 +52,7 @@ describe('NotesStateService', () => {
 
   it('creates a note with matching created and modified timestamps', async () => {
     const created = await service.createNote(
-      { kind: 'text', title: 'New note', text: 'Body' },
+      { title: 'New note', elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }] },
       []
     );
 
@@ -66,9 +65,8 @@ describe('NotesStateService', () => {
   it('updates a note and refreshes the modified timestamp', async () => {
     const existing: Note = {
       id: 2,
-      kind: 'text',
       title: 'Original',
-      text: 'Before',
+      elements: [{ id: 't1', text: 'Before', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
       attachments: []
@@ -76,12 +74,11 @@ describe('NotesStateService', () => {
     service.notes.set([existing]);
 
     const updated = await service.updateNote(2, {
-      kind: 'todo',
       title: 'Updated',
-      todos: ['One', 'Two']
+      elements: [{ id: 't2', text: 'Updated', x: 10, y: 20, width: 220, fontSize: 28 }]
     });
 
-    expect(updated.kind).toBe('todo');
+    expect(updated.elements[0].text).toBe('Updated');
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
     expect(auth.recordActivity).toHaveBeenCalled();
@@ -90,9 +87,8 @@ describe('NotesStateService', () => {
   it('deletes an attachment from an existing note', async () => {
     const existing: Note = {
       id: 3,
-      kind: 'text',
       title: 'With attachment',
-      text: 'Body',
+      elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
       attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]

@@ -4,16 +4,16 @@ Offline-first Angular notes application with local-only authentication, optional
 
 ## Features
 
-- Create plain text notes
-- Create todo list notes (one item per line)
+- Create SVG canvas notes with infinite pan and zoom
+- Click anywhere on a note to add text, then drag and resize text items
 - Attach any file type to a note (images, videos, audio, PDFs, and more)
 - Create a local account and sign in entirely offline
 - Optionally enable device-backed unlock (for example biometrics or a passkey prompt) when the browser exposes the required offline WebAuthn capabilities
 - Navigate with a shell menu containing Notes and Settings
 - Automatically follows the browser light or dark color-scheme preference
 - Keeps the user signed in across refreshes with a configurable login timeout, including an unfocus-lock option
-- Browse notes on a dedicated list page with created and last-modified timestamps
-- Open a note details page to review and edit a note with its fields prepopulated
+- Browse notes on a dedicated list page with SVG previews plus created and last-modified timestamps
+- Open a note details page to edit the SVG canvas and manage attachments
 - Notes and attachments are encrypted locally using a password-protected vault stored in the **Origin Private File System (OPFS)**
 - PWA/service worker setup for offline app shell support
 

@@ -1,126 +1,189 @@
-<section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
-  <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <p class="text-xs uppercase tracking-wide text-theme-muted">
-        @if (isNewNote) {
-          New note
-        } @else {
-          Note details
-        }
-      </p>
-      <h2 class="text-xl font-semibold text-theme-text">
-        @if (isNewNote) {
-          Create note
-        } @else {
-          {{ noteTitle || note?.title }}
-        }
-      </h2>
-      @if (note) {
-        <p class="mt-1 text-sm text-theme-muted">
-          Created {{ note.createdAt | date: 'short' }} · Last modified {{ note.lastModifiedAt | date: 'short' }}
-        </p>
-      }
-    </div>
-
-    <div class="flex flex-wrap gap-2">
-      <a
-        routerLink="/notes"
-        class="rounded border border-theme-border px-3 py-1.5 text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
-      >
-        Back to notes
-      </a>
-      @if (note) {
-        <button
-          type="button"
-          (click)="deleteNote()"
-          class="rounded border border-theme-accent-border px-3 py-1.5 text-sm text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
-        >
-          Delete note
-        </button>
-      }
-    </div>
-  </div>
-
+<section class="flex min-h-[calc(100vh-9rem)] flex-col rounded-lg border border-theme-border bg-theme-surface p-3 shadow-sm shadow-theme-brand/10 lg:p-4">
   @if (noteError) {
     <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ noteError }}</p>
   }
 
-  <form (ngSubmit)="saveNote()" class="flex flex-col gap-3">
-    <div class="flex flex-col gap-1">
-      <label for="kind" class="text-sm font-medium text-theme-text">Type</label>
-      <select
-        id="kind"
-        name="kind"
-        [(ngModel)]="noteKind"
-        class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
+  <form (ngSubmit)="saveNote()" class="flex min-h-full flex-1 flex-col gap-3">
+    <div class="flex flex-wrap items-center gap-2 border-b border-theme-border pb-3">
+      <a
+        routerLink="/notes"
+        class="rounded border border-theme-border px-3 py-1.5 text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
       >
-        <option value="text">Plain text</option>
-        <option value="todo">Todo list</option>
-      </select>
-    </div>
+        Back
+      </a>
 
-    <div class="flex flex-col gap-1">
-      <label for="title" class="text-sm font-medium text-theme-text">Title</label>
+      <label for="title" class="sr-only">Title</label>
       <input
         id="title"
         name="title"
         [(ngModel)]="noteTitle"
-        class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
+        placeholder="Untitled note"
+        class="min-w-[14rem] flex-1 rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
       />
+
+      @if (note) {
+        <p class="hidden text-xs text-theme-muted xl:block">
+          Created {{ note.createdAt | date: 'short' }} · Last modified {{ note.lastModifiedAt | date: 'short' }}
+        </p>
+      }
+
+      <button
+        type="submit"
+        class="rounded bg-theme-accent px-4 py-2 text-sm font-medium text-theme-on-accent hover:bg-theme-accent/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
+      >
+        @if (isNewNote) {
+          Create note
+        } @else {
+          Save
+        }
+      </button>
+
+      @if (note) {
+        <button
+          type="button"
+          (click)="deleteNote()"
+          class="rounded border border-theme-accent-border px-3 py-2 text-sm text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
+        >
+          Delete
+        </button>
+      }
     </div>
 
-    @if (noteKind === 'text') {
-      <div class="flex flex-col gap-1">
-        <label for="text" class="text-sm font-medium text-theme-text">Text</label>
-        <textarea
-          id="text"
-          name="text"
-          rows="6"
-          [(ngModel)]="noteText"
-          class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
-        ></textarea>
+    <div class="flex-1 rounded-lg border border-theme-border bg-theme-bg p-2">
+      <div class="mb-2 flex items-center gap-2 border-b border-theme-border pb-2">
+        <button
+          type="button"
+          (click)="setActiveTool('selection')"
+          aria-label="Selection tool"
+          title="Selection tool"
+          class="inline-flex h-10 w-10 items-center justify-center rounded border focus:outline-none focus:ring-2 focus:ring-theme-accent"
+          [class.border-theme-accent]="activeTool === 'selection'"
+          [class.bg-theme-brand-soft]="activeTool === 'selection'"
+          [class.text-theme-accent]="activeTool === 'selection'"
+          [class.border-theme-border]="activeTool !== 'selection'"
+          [class.text-theme-text]="activeTool !== 'selection'"
+        >
+          <i class="fa-solid fa-arrow-pointer" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          (click)="setActiveTool('text')"
+          aria-label="Text tool"
+          title="Text tool"
+          class="inline-flex h-10 w-10 items-center justify-center rounded border focus:outline-none focus:ring-2 focus:ring-theme-accent"
+          [class.border-theme-accent]="activeTool === 'text'"
+          [class.bg-theme-brand-soft]="activeTool === 'text'"
+          [class.text-theme-accent]="activeTool === 'text'"
+          [class.border-theme-border]="activeTool !== 'text'"
+          [class.text-theme-text]="activeTool !== 'text'"
+        >
+          <i class="fa-solid fa-font" aria-hidden="true"></i>
+        </button>
       </div>
-    } @else {
-      <div class="flex flex-col gap-1">
-        <label for="todo" class="text-sm font-medium text-theme-text">Todo items (one per line)</label>
-        <textarea
-          id="todo"
-          name="todo"
-          rows="6"
-          [(ngModel)]="todoText"
-          class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
-        ></textarea>
-      </div>
-    }
+
+      <svg
+        #svgHost
+        class="h-[calc(100vh-18rem)] min-h-[60vh] w-full touch-none rounded border border-theme-border bg-theme-surface"
+        (pointerdown)="onCanvasPointerDown($event)"
+        (wheel)="onCanvasWheel($event)"
+      >
+        <defs>
+          <pattern id="svg-grid" width="80" height="80" patternUnits="userSpaceOnUse">
+            <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgb(var(--theme-border) / 0.45)" stroke-width="1" />
+          </pattern>
+        </defs>
+        <rect x="-50000" y="-50000" width="100000" height="100000" fill="url(#svg-grid)" />
+        <g [attr.transform]="'translate(' + viewX + ' ' + viewY + ') scale(' + scale + ')'">
+          @for (element of elements; track element.id) {
+            <g>
+              <rect
+                [attr.x]="element.x - 12"
+                [attr.y]="element.y - element.fontSize - 10"
+                [attr.width]="element.width + 24"
+                [attr.height]="estimateElementHeight(element) + 20"
+                rx="12"
+                fill="transparent"
+                stroke="rgb(var(--theme-accent) / 0.7)"
+                [attr.stroke-width]="selectedElementId === element.id ? 1.5 / scale : 0"
+                (pointerdown)="onTextPointerDown($event, element.id)"
+                (dblclick)="onTextDoubleClick($event, element.id)"
+              />
+              <foreignObject
+                [attr.x]="element.x"
+                [attr.y]="element.y - element.fontSize"
+                [attr.width]="element.width"
+                [attr.height]="estimateElementHeight(element)"
+              >
+                @if (editingElementId === element.id) {
+                  <textarea
+                    xmlns="http://www.w3.org/1999/xhtml"
+                    [id]="inlineEditorId(element.id)"
+                    [name]="inlineEditorId(element.id)"
+                    [ngModel]="element.text"
+                    (ngModelChange)="updateEditingText(element.id, $event)"
+                    (pointerdown)="onInlineEditorPointerDown($event, element.id)"
+                    (blur)="stopEditingElement()"
+                    class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
+                    [style.fontSize.px]="element.fontSize"
+                    [style.lineHeight]="1.35"
+                    spellcheck="false"
+                  ></textarea>
+                } @else {
+                  <div
+                    xmlns="http://www.w3.org/1999/xhtml"
+                    class="select-none whitespace-pre-wrap break-words text-theme-text"
+                    [style.fontSize.px]="element.fontSize"
+                    [style.lineHeight]="1.35"
+                    (pointerdown)="onTextPointerDown($event, element.id)"
+                    (dblclick)="onTextDoubleClick($event, element.id)"
+                  >
+                    {{ element.text }}
+                  </div>
+                }
+              </foreignObject>
+              @if (selectedElementId === element.id && activeTool === 'selection') {
+                <circle
+                  [attr.cx]="element.x + element.width + 12"
+                  [attr.cy]="element.y + estimateElementHeight(element) + 4"
+                  [attr.r]="8 / scale"
+                  fill="rgb(var(--theme-accent) / 1)"
+                  (pointerdown)="onResizeHandlePointerDown($event, element.id)"
+                />
+              }
+            </g>
+          }
+        </g>
+      </svg>
+    </div>
 
     @if (isNewNote) {
-      <div class="flex flex-col gap-1">
-        <label for="attachments" class="text-sm font-medium text-theme-text">Attachments (optional)</label>
+      <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
+        <label for="attachments" class="text-sm font-medium text-theme-text">Attachments</label>
         <input
           #fileInput
           id="attachments"
           type="file"
           multiple
           (change)="onFileChange($event)"
-          class="text-sm text-theme-muted file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-theme-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-theme-text hover:file:bg-theme-border"
+          class="mt-2 text-sm text-theme-muted file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-theme-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-theme-text hover:file:bg-theme-border"
         />
-      </div>
 
-      @if (pendingFiles.length > 0) {
-        <div class="flex flex-wrap gap-2">
-          @for (file of pendingFiles; track file.name) {
-            <span class="rounded-full bg-theme-brand-soft px-3 py-1 text-xs text-theme-text">
-              {{ file.name }} ({{ formatFileSize(file.size) }})
-            </span>
-          }
-        </div>
-      }
+        @if (pendingFiles.length > 0) {
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (file of pendingFiles; track file.name) {
+              <span class="rounded-full bg-theme-brand-soft px-3 py-1 text-xs text-theme-text">
+                {{ file.name }} ({{ formatFileSize(file.size) }})
+              </span>
+            }
+          </div>
+        }
+      </div>
     } @else if (note && note.attachments.length > 0) {
-      <div class="border-t border-theme-border pt-3">
+      <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
         <p class="mb-2 text-sm font-medium text-theme-text">Attachments</p>
         <div class="flex flex-col gap-3">
           @for (attachment of note.attachments; track attachment.id) {
-            <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
+            <div class="rounded-lg border border-theme-border bg-theme-surface p-3">
               <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div class="text-xs text-theme-muted">
                   {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
@@ -139,16 +202,5 @@
         </div>
       </div>
     }
-
-    <button
-      type="submit"
-      class="w-fit rounded bg-theme-accent px-4 py-2 text-sm font-medium text-theme-on-accent hover:bg-theme-accent/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
-    >
-      @if (isNewNote) {
-        Create note
-      } @else {
-        Save changes
-      }
-    </button>
   </form>
 </section>

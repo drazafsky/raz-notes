@@ -148,9 +148,8 @@ describe('StorageService', () => {
     const notes: Note[] = [
       {
         id: 1,
-        kind: 'text',
         title: 'Secret',
-        text: 'Top secret note',
+        elements: [{ id: 't1', text: 'Top secret note', x: 0, y: 0, width: 180, fontSize: 24 }],
         createdAt: '2026-04-19T00:00:00.000Z',
         lastModifiedAt: '2026-04-19T00:00:00.000Z',
         attachments: []
@@ -184,9 +183,8 @@ describe('StorageService', () => {
     const notes: Note[] = [
       {
         id: 5,
-        kind: 'text',
         title: 'Legacy',
-        text: 'Needs migration',
+        elements: [{ id: 't1', text: 'Needs migration', x: 0, y: 0, width: 180, fontSize: 24 }],
         createdAt: '2026-04-19T00:00:00.000Z',
         lastModifiedAt: '2026-04-19T00:00:00.000Z',
         attachments: [{ id: 'att-legacy', name: 'legacy.txt', type: 'text/plain', size: 6 }]
