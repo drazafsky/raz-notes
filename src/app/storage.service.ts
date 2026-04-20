@@ -113,6 +113,24 @@ export class StorageService {
     return new Blob([toArrayBuffer(data)], { type: mimeType });
   }
 
+  async deleteAttachment(noteId: number, attachmentId: string): Promise<void> {
+    const attachmentsRoot = await this.getEncryptedAttachmentsRoot(false);
+    if (!attachmentsRoot) {
+      return;
+    }
+
+    try {
+      const noteDir = await attachmentsRoot.getDirectoryHandle(String(noteId));
+      await this.removeEntryIfExists(noteDir, attachmentId, false);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'NotFoundError') {
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   async deleteNote(noteId: number): Promise<void> {
     const attachmentsRoot = await this.getEncryptedAttachmentsRoot(false);
     if (attachmentsRoot) {

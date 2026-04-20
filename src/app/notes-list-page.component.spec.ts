@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { AuthService, AuthStatus } from './auth.service';
 import { NotesListPageComponent } from './notes-list-page.component';
 import { NotesStateService } from './notes-state.service';
-import { Note } from './storage.service';
+import { Note, StorageService } from './storage.service';
 
 class MockAuthService {
   readonly status = signal<AuthStatus>('unlocked');
@@ -35,20 +35,27 @@ class MockNotesStateService {
       text: 'Body',
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
-      attachments: []
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
     }
   ]);
   readonly notesByUpdatedAt = computed(() => this.notes());
+  deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
 }
 
 describe('NotesListPageComponent', () => {
-  it('renders note metadata in the list', async () => {
+  it('renders note metadata and attachments in the list', async () => {
     await TestBed.configureTestingModule({
       imports: [NotesListPageComponent],
       providers: [
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
-        { provide: NotesStateService, useClass: MockNotesStateService }
+        { provide: NotesStateService, useClass: MockNotesStateService },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' }))
+          })
+        }
       ]
     }).compileComponents();
 
@@ -59,5 +66,32 @@ describe('NotesListPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Saved');
     expect(fixture.nativeElement.textContent).toContain('text');
     expect(fixture.nativeElement.textContent).toContain('Last modified');
+    expect(fixture.nativeElement.textContent).toContain('file.txt');
+    expect(fixture.nativeElement.textContent).toContain('Delete');
+  });
+
+  it('deletes a note from the list page', async () => {
+    const notesState = new MockNotesStateService();
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' }))
+          })
+        }
+      ]
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    const component = fixture.componentInstance;
+
+    await component.deleteNote(1);
+
+    expect(notesState.deleteNote).toHaveBeenCalledWith(1);
   });
 });

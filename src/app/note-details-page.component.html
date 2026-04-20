@@ -120,9 +120,18 @@
         <p class="mb-2 text-sm font-medium text-theme-text">Attachments</p>
         <div class="flex flex-col gap-3">
           @for (attachment of note.attachments; track attachment.id) {
-            <div>
-              <div class="mb-1 text-xs text-theme-muted">
-                {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
+            <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
+              <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div class="text-xs text-theme-muted">
+                  {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
+                </div>
+                <button
+                  type="button"
+                  (click)="deleteAttachment(attachment.id)"
+                  class="rounded border border-theme-accent-border px-2 py-1 text-xs text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
+                >
+                  Delete attachment
+                </button>
               </div>
               <app-attachment-viewer [noteId]="note.id" [attachment]="attachment" />
             </div>

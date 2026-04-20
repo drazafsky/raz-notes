@@ -113,6 +113,20 @@ export class NoteDetailsPageComponent {
     void this.router.navigate(['/notes']);
   }
 
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    if (!this.note) {
+      return;
+    }
+
+    this.noteError = '';
+
+    try {
+      this.note = await this.notesState.deleteAttachment(this.note.id, attachmentId);
+    } catch (error) {
+      this.noteError = error instanceof Error ? error.message : 'Something went wrong.';
+    }
+  }
+
   formatFileSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

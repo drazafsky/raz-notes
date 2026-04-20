@@ -54,6 +54,12 @@
 </section>
 
 <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+  @if (noteActionError) {
+    <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
+      {{ noteActionError }}
+    </p>
+  }
+
   @if (notesState.notesByUpdatedAt().length === 0) {
     <p class="text-theme-muted">No notes yet.</p>
   } @else {
@@ -64,12 +70,14 @@
             <th class="py-2 pr-4">Note</th>
             <th class="py-2 pr-4">Type</th>
             <th class="py-2 pr-4">Created</th>
-            <th class="py-2">Last modified</th>
+            <th class="py-2 pr-4">Last modified</th>
+            <th class="py-2 pr-4">Attachments</th>
+            <th class="py-2">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-theme-border">
           @for (note of notesState.notesByUpdatedAt(); track note.id) {
-            <tr class="hover:bg-theme-brand-soft">
+            <tr class="align-top hover:bg-theme-brand-soft">
               <td class="py-3 pr-4">
                 <a [routerLink]="['/notes', note.id]" class="font-medium text-theme-accent hover:text-theme-text">
                   {{ note.title }}
@@ -77,7 +85,40 @@
               </td>
               <td class="py-3 pr-4 text-theme-text">{{ note.kind }}</td>
               <td class="py-3 pr-4 text-theme-muted">{{ note.createdAt | date: 'short' }}</td>
-              <td class="py-3 text-theme-muted">{{ note.lastModifiedAt | date: 'short' }}</td>
+              <td class="py-3 pr-4 text-theme-muted">{{ note.lastModifiedAt | date: 'short' }}</td>
+              <td class="py-3 pr-4">
+                @if (note.attachments.length === 0) {
+                  <span class="text-theme-muted">No attachments</span>
+                } @else {
+                  <div class="flex min-w-[16rem] flex-col gap-3">
+                    @for (attachment of note.attachments; track attachment.id) {
+                      <div class="rounded-lg border border-theme-border bg-theme-bg p-2">
+                        <div class="mb-2 text-xs text-theme-muted">
+                          {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
+                        </div>
+                        <app-attachment-viewer [noteId]="note.id" [attachment]="attachment" />
+                      </div>
+                    }
+                  </div>
+                }
+              </td>
+              <td class="py-3">
+                <div class="flex flex-col gap-2">
+                  <a
+                    [routerLink]="['/notes', note.id]"
+                    class="rounded border border-theme-border px-3 py-1.5 text-center text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
+                  >
+                    Open
+                  </a>
+                  <button
+                    type="button"
+                    (click)="deleteNote(note.id)"
+                    class="rounded border border-theme-accent-border px-3 py-1.5 text-sm text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
             </tr>
           }
         </tbody>

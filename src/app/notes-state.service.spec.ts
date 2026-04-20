@@ -14,12 +14,14 @@ describe('NotesStateService', () => {
       'loadNotes',
       'saveNotes',
       'writeAttachment',
-      'deleteNote'
+      'deleteNote',
+      'deleteAttachment'
     ]);
     storage.loadNotes.and.returnValue(Promise.resolve([]));
     storage.saveNotes.and.returnValue(Promise.resolve());
     storage.writeAttachment.and.returnValue(Promise.resolve());
     storage.deleteNote.and.returnValue(Promise.resolve());
+    storage.deleteAttachment.and.returnValue(Promise.resolve());
     auth = jasmine.createSpyObj<AuthService>('AuthService', ['recordActivity']);
 
     TestBed.configureTestingModule({
@@ -82,6 +84,25 @@ describe('NotesStateService', () => {
     expect(updated.kind).toBe('todo');
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
+    expect(auth.recordActivity).toHaveBeenCalled();
+  });
+
+  it('deletes an attachment from an existing note', async () => {
+    const existing: Note = {
+      id: 3,
+      kind: 'text',
+      title: 'With attachment',
+      text: 'Body',
+      createdAt: '2026-04-19T00:00:00.000Z',
+      lastModifiedAt: '2026-04-19T00:00:00.000Z',
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
+    };
+    service.notes.set([existing]);
+
+    const updated = await service.deleteAttachment(3, 'a1');
+
+    expect(updated.attachments).toEqual([]);
+    expect(storage.deleteAttachment).toHaveBeenCalledWith(3, 'a1');
     expect(auth.recordActivity).toHaveBeenCalled();
   });
 });
