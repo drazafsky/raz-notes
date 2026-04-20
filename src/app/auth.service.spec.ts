@@ -6,7 +6,7 @@ import { StorageService } from './storage.service';
 
 function createMockPublicKeyCredential(
   id: Uint8Array,
-  prfOutput?: Uint8Array
+  prfOutput?: Uint8Array,
 ): PublicKeyCredential {
   return {
     rawId: id.buffer.slice(0),
@@ -16,11 +16,11 @@ function createMockPublicKeyCredential(
             prf: {
               enabled: true,
               results: {
-                first: prfOutput.buffer.slice(0)
-              }
-            }
+                first: prfOutput.buffer.slice(0),
+              },
+            },
           }
-        : { prf: { enabled: true } }
+        : { prf: { enabled: true } },
   } as unknown as PublicKeyCredential;
 }
 
@@ -29,7 +29,9 @@ describe('AuthService', () => {
   let storage: jasmine.SpyObj<StorageService>;
   let createSpy: jasmine.Spy;
   let getSpy: jasmine.Spy;
-  let originalGetClientCapabilities: (() => Promise<Record<string, boolean | undefined>>) | undefined;
+  let originalGetClientCapabilities:
+    | (() => Promise<Record<string, boolean | undefined>>)
+    | undefined;
 
   beforeEach(() => {
     localStorage.clear();
@@ -43,7 +45,7 @@ describe('AuthService', () => {
       'saveNotes',
       'writeAttachment',
       'readAttachment',
-      'deleteNote'
+      'deleteNote',
     ]);
     storage.init.and.returnValue(Promise.resolve());
     storage.readAuthRecord.and.returnValue(Promise.resolve(null));
@@ -53,7 +55,7 @@ describe('AuthService', () => {
     createSpy = spyOn(navigator.credentials, 'create').and.returnValue(Promise.resolve(null));
     getSpy = spyOn(navigator.credentials, 'get').and.returnValue(Promise.resolve(null));
     spyOn(PublicKeyCredential, 'isUserVerifyingPlatformAuthenticatorAvailable').and.returnValue(
-      Promise.resolve(true)
+      Promise.resolve(true),
     );
     originalGetClientCapabilities = (
       PublicKeyCredential as typeof PublicKeyCredential & {
@@ -62,11 +64,13 @@ describe('AuthService', () => {
     ).getClientCapabilities;
     Object.defineProperty(PublicKeyCredential, 'getClientCapabilities', {
       configurable: true,
-      value: jasmine.createSpy('getClientCapabilities').and.returnValue(Promise.resolve({ prf: true }))
+      value: jasmine
+        .createSpy('getClientCapabilities')
+        .and.returnValue(Promise.resolve({ prf: true })),
     });
 
     TestBed.configureTestingModule({
-      providers: [{ provide: StorageService, useValue: storage }]
+      providers: [{ provide: StorageService, useValue: storage }],
     });
 
     service = TestBed.inject(AuthService);
@@ -76,7 +80,7 @@ describe('AuthService', () => {
     localStorage.clear();
     Object.defineProperty(PublicKeyCredential, 'getClientCapabilities', {
       configurable: true,
-      value: originalGetClientCapabilities
+      value: originalGetClientCapabilities,
     });
   });
 
@@ -94,9 +98,9 @@ describe('AuthService', () => {
     expect(service.status()).toBe('unlocked');
     expect(service.storedUsername()).toBe('Alice');
     expect(storage.setVaultKey).toHaveBeenCalled();
-    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout).toBe(
-      DEFAULT_LOGIN_TIMEOUT
-    );
+    expect(
+      (storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout,
+    ).toBe(DEFAULT_LOGIN_TIMEOUT);
   });
 
   it('logs in with the original password after locking', async () => {
@@ -145,7 +149,9 @@ describe('AuthService', () => {
     await service.disablePasswordlessUnlock();
 
     expect(service.passwordlessEnrolled()).toBeFalse();
-    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).passwordless).toBeUndefined();
+    expect(
+      (storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).passwordless,
+    ).toBeUndefined();
   });
 
   it('loads a stored account and starts locked with passwordless state', async () => {
@@ -161,9 +167,9 @@ describe('AuthService', () => {
           prfSalt: 'AQIDBA==',
           iv: 'AQIDBA==',
           wrappedVaultKey: 'AQIDBA==',
-          createdAt: new Date().toISOString()
-        }
-      })
+          createdAt: new Date().toISOString(),
+        },
+      }),
     );
 
     await service.init();
@@ -178,7 +184,7 @@ describe('AuthService', () => {
     storage.readAuthRecord.and.returnValue(Promise.resolve(saved));
     storage.setVaultKey.calls.reset();
 
-    const restoredService = new AuthService(storage);
+    const restoredService = TestBed.runInInjectionContext(() => new AuthService());
     await restoredService.init();
 
     expect(restoredService.status()).toBe('unlocked');
@@ -197,11 +203,11 @@ describe('AuthService', () => {
       JSON.stringify({
         ...JSON.parse(sessionText as string),
         lastActivityAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        unlockedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-      })
+        unlockedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      }),
     );
 
-    const restoredService = new AuthService(storage);
+    const restoredService = TestBed.runInInjectionContext(() => new AuthService());
     await restoredService.init();
 
     expect(restoredService.status()).toBe('locked');
@@ -214,9 +220,9 @@ describe('AuthService', () => {
     await service.setLoginTimeout('never');
 
     expect(service.loginTimeout()).toBe('never');
-    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout).toBe(
-      'never'
-    );
+    expect(
+      (storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout,
+    ).toBe('never');
   });
 
   it('locks immediately on unfocus when that login timeout is configured', async () => {
@@ -239,8 +245,8 @@ describe('AuthService', () => {
       'raz-notes.session',
       JSON.stringify({
         ...JSON.parse(sessionText as string),
-        lastActivityAt: '2026-04-19T00:00:00.000Z'
-      })
+        lastActivityAt: '2026-04-19T00:00:00.000Z',
+      }),
     );
 
     service.recordActivity();

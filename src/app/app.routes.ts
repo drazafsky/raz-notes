@@ -10,5 +10,5 @@ export const routes: Routes = [
   { path: 'notes/new', component: NoteDetailsPageComponent },
   { path: 'notes/:id', component: NoteDetailsPageComponent },
   { path: 'settings', component: SettingsPageComponent },
-  { path: '**', redirectTo: 'notes' }
+  { path: '**', redirectTo: 'notes' },
 ];

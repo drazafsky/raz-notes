@@ -15,7 +15,7 @@ function createMockWritable(): MockWritable {
     write: jasmine.createSpy('write').and.callFake(async (chunk: ArrayBuffer | string) => {
       writable._data = chunk;
     }),
-    close: jasmine.createSpy('close').and.returnValue(Promise.resolve())
+    close: jasmine.createSpy('close').and.returnValue(Promise.resolve()),
   };
 
   return writable;
@@ -37,9 +37,9 @@ function createMockFileHandle(initialContent = ''): MockFileHandle {
 
   const handle = {
     getFile: jasmine.createSpy('getFile').and.callFake(async () => new File([content], 'file')),
-    createWritable: jasmine.createSpy('createWritable').and.returnValue(
-      Promise.resolve(writable as unknown as FileSystemWritableFileStream)
-    )
+    createWritable: jasmine
+      .createSpy('createWritable')
+      .and.returnValue(Promise.resolve(writable as unknown as FileSystemWritableFileStream)),
   } as unknown as FileSystemFileHandle;
 
   return { handle, writable };
@@ -92,7 +92,7 @@ function createMockDirHandle(): MockDirHandle {
       }
 
       throw new DOMException('Not found', 'NotFoundError');
-    })
+    }),
   } as unknown as FileSystemDirectoryHandle;
 
   return { handle, files, subdirs };
@@ -109,11 +109,10 @@ describe('StorageService', () => {
 
     TestBed.configureTestingModule({});
     service = TestBed.inject(StorageService);
-    vaultKey = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
+    vaultKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+      'encrypt',
+      'decrypt',
+    ]);
     localStorage.clear();
   });
 
@@ -136,7 +135,7 @@ describe('StorageService', () => {
       iv: 'iv',
       wrappedVaultKey: 'wrapped',
       iterations: 123,
-      createdAt: '2026-04-19T00:00:00.000Z'
+      createdAt: '2026-04-19T00:00:00.000Z',
     };
 
     await service.saveAuthRecord(record);
@@ -152,8 +151,8 @@ describe('StorageService', () => {
         elements: [{ id: 't1', text: 'Top secret note', x: 0, y: 0, width: 180, fontSize: 24 }],
         createdAt: '2026-04-19T00:00:00.000Z',
         lastModifiedAt: '2026-04-19T00:00:00.000Z',
-        attachments: []
-      }
+        attachments: [],
+      },
     ];
 
     service.setVaultKey(vaultKey);
@@ -163,7 +162,19 @@ describe('StorageService', () => {
     expect(stored).toBeDefined();
     expect(stored!.writable._data).not.toContain('Top secret note');
 
-    await expectAsync(service.loadNotes()).toBeResolvedTo(notes);
+    const loadedNotes = await service.loadNotes();
+
+    expect(loadedNotes).toEqual([
+      jasmine.objectContaining({
+        ...notes[0],
+        elements: [
+          jasmine.objectContaining({
+            ...notes[0].elements[0],
+            height: jasmine.any(Number),
+          }),
+        ],
+      }),
+    ]);
   });
 
   it('encrypts attachments and can read them back after unlock', async () => {
@@ -187,8 +198,8 @@ describe('StorageService', () => {
         elements: [{ id: 't1', text: 'Needs migration', x: 0, y: 0, width: 180, fontSize: 24 }],
         createdAt: '2026-04-19T00:00:00.000Z',
         lastModifiedAt: '2026-04-19T00:00:00.000Z',
-        attachments: [{ id: 'att-legacy', name: 'legacy.txt', type: 'text/plain', size: 6 }]
-      }
+        attachments: [{ id: 'att-legacy', name: 'legacy.txt', type: 'text/plain', size: 6 }],
+      },
     ];
     root.files.set('notes-index.json', createMockFileHandle(JSON.stringify(notes)));
     const noteDir = createMockDirHandle();
@@ -197,7 +208,19 @@ describe('StorageService', () => {
 
     service.setVaultKey(vaultKey);
 
-    await expectAsync(service.loadNotes()).toBeResolvedTo(notes);
+    const loadedNotes = await service.loadNotes();
+
+    expect(loadedNotes).toEqual([
+      jasmine.objectContaining({
+        ...notes[0],
+        elements: [
+          jasmine.objectContaining({
+            ...notes[0].elements[0],
+            height: jasmine.any(Number),
+          }),
+        ],
+      }),
+    ]);
     const blob = await service.readAttachment(5, 'att-legacy', 'text/plain');
 
     expect(await blob.text()).toBe('secret');
