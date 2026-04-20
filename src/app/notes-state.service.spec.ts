@@ -1,11 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
 import { Note, StorageService } from './storage.service';
 
 describe('NotesStateService', () => {
   let service: NotesStateService;
   let storage: jasmine.SpyObj<StorageService>;
+  let auth: jasmine.SpyObj<AuthService>;
 
   beforeEach(() => {
     storage = jasmine.createSpyObj<StorageService>('StorageService', [
@@ -18,9 +20,13 @@ describe('NotesStateService', () => {
     storage.saveNotes.and.returnValue(Promise.resolve());
     storage.writeAttachment.and.returnValue(Promise.resolve());
     storage.deleteNote.and.returnValue(Promise.resolve());
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['recordActivity']);
 
     TestBed.configureTestingModule({
-      providers: [{ provide: StorageService, useValue: storage }]
+      providers: [
+        { provide: StorageService, useValue: storage },
+        { provide: AuthService, useValue: auth }
+      ]
     });
 
     service = TestBed.inject(NotesStateService);
@@ -52,6 +58,7 @@ describe('NotesStateService', () => {
     expect(created.createdAt).toBe(created.lastModifiedAt);
     expect(service.notes()[0].title).toBe('New note');
     expect(storage.saveNotes).toHaveBeenCalled();
+    expect(auth.recordActivity).toHaveBeenCalled();
   });
 
   it('updates a note and refreshes the modified timestamp', async () => {
@@ -75,5 +82,6 @@ describe('NotesStateService', () => {
     expect(updated.kind).toBe('todo');
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
+    expect(auth.recordActivity).toHaveBeenCalled();
   });
 });

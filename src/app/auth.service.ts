@@ -2,7 +2,9 @@ import { Injectable, computed, signal } from '@angular/core';
 
 import {
   AuthRecord,
+  LoginTimeoutOption,
   PasswordlessCredentialRecord,
+  SessionRecord,
   base64ToBytes,
   bytesToBase64,
   normalizeUsername,
@@ -22,6 +24,22 @@ const WRAP_IV_BYTES = 12;
 const PRF_SALT_BYTES = 32;
 const USER_HANDLE_BYTES = 32;
 const PBKDF2_ITERATIONS = 310000;
+const SESSION_STORAGE_KEY = 'raz-notes.session';
+const MIN_ACTIVITY_REFRESH_MS = 1000;
+
+export const DEFAULT_LOGIN_TIMEOUT: LoginTimeoutOption = '1-hour';
+export const LOGIN_TIMEOUT_OPTIONS: ReadonlyArray<{
+  readonly value: LoginTimeoutOption;
+  readonly label: string;
+}> = [
+  { value: 'never', label: 'Never' },
+  { value: '30-minutes', label: '30 minutes' },
+  { value: '1-hour', label: '1 hour' },
+  { value: '6-hours', label: '6 hours' },
+  { value: '12-hours', label: '12 hours' },
+  { value: '24-hours', label: '24 hours' },
+  { value: 'application-unfocus', label: 'Application Unfocus' }
+] as const;
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -29,22 +47,45 @@ export class AuthService {
   readonly storedUsername = signal('');
   readonly passwordlessAvailable = signal(false);
   readonly passwordlessEnrolled = signal(false);
+  readonly loginTimeout = signal<LoginTimeoutOption>(DEFAULT_LOGIN_TIMEOUT);
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
   readonly canUsePasswordless = computed(
     () => this.passwordlessAvailable() && this.passwordlessEnrolled()
   );
 
   private authRecord: AuthRecord | null = null;
+  private sessionTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly storage: StorageService) {}
 
   async init(): Promise<void> {
     await this.storage.init();
     this.passwordlessAvailable.set(await this.detectPasswordlessAvailability());
-    this.authRecord = await this.storage.readAuthRecord();
+    const storedRecord = await this.storage.readAuthRecord();
+    this.authRecord = storedRecord ? this.normalizeAuthRecord(storedRecord) : null;
     this.storedUsername.set(this.authRecord?.username ?? '');
     this.passwordlessEnrolled.set(!!this.authRecord?.passwordless);
-    this.status.set(this.authRecord ? 'locked' : 'setup-required');
+    this.loginTimeout.set(this.getConfiguredLoginTimeout(this.authRecord));
+
+    if (!this.authRecord) {
+      this.clearSessionState();
+      this.status.set('setup-required');
+      return;
+    }
+
+    const session = this.readSessionRecord();
+    if (session && !this.hasSessionExpired(session)) {
+      try {
+        await this.restoreSession(session);
+        return;
+      } catch {
+        this.clearSessionState();
+      }
+    } else {
+      this.clearSessionState();
+    }
+
+    this.status.set('locked');
   }
 
   async createAccount(username: string, password: string): Promise<void> {
@@ -87,11 +128,14 @@ export class AuthService {
       wrappedVaultKey: bytesToBase64(wrappedVaultKey),
       iterations: PBKDF2_ITERATIONS,
       createdAt: new Date().toISOString(),
-      userHandle: bytesToBase64(this.randomBytes(USER_HANDLE_BYTES))
+      userHandle: bytesToBase64(this.randomBytes(USER_HANDLE_BYTES)),
+      loginSettings: {
+        timeout: DEFAULT_LOGIN_TIMEOUT
+      }
     };
 
     await this.persistAuthRecord(record);
-    this.storage.setVaultKey(vaultKey);
+    await this.unlockWithRawVaultKey(exportedVaultKey, 'password');
     this.status.set('unlocked');
   }
 
@@ -119,7 +163,7 @@ export class AuthService {
       throw new Error('Invalid username or password.');
     }
 
-    this.storage.setVaultKey(await this.importVaultKey(rawVaultKey));
+    await this.unlockWithRawVaultKey(rawVaultKey, 'password');
     this.status.set('unlocked');
   }
 
@@ -130,7 +174,7 @@ export class AuthService {
     }
 
     const rawVaultKey = await this.unwrapVaultKeyWithDevice(passwordless);
-    this.storage.setVaultKey(await this.importVaultKey(rawVaultKey));
+    await this.unlockWithRawVaultKey(rawVaultKey, 'device');
     this.status.set('unlocked');
   }
 
@@ -179,16 +223,72 @@ export class AuthService {
     await this.persistAuthRecord(rest);
   }
 
+  async setLoginTimeout(timeout: LoginTimeoutOption): Promise<void> {
+    const authRecord = this.requireAuthRecord();
+    await this.persistAuthRecord({
+      ...authRecord,
+      loginSettings: {
+        timeout
+      }
+    });
+
+    if (this.isUnlocked()) {
+      if (this.hasSessionExpired(this.requireSessionRecord())) {
+        this.logout();
+        return;
+      }
+
+      this.scheduleSessionTimeout();
+    }
+  }
+
+  lockForUnfocus(): void {
+    if (this.isUnlocked() && this.loginTimeout() === 'application-unfocus') {
+      this.logout();
+    }
+  }
+
+  recordActivity(): void {
+    if (!this.isUnlocked()) {
+      return;
+    }
+
+    const timeout = this.loginTimeout();
+    if (timeout === 'never' || timeout === 'application-unfocus') {
+      return;
+    }
+
+    const session = this.readSessionRecord();
+    if (!session) {
+      return;
+    }
+
+    const now = Date.now();
+    const lastActivityAt = Date.parse(session.lastActivityAt);
+    if (!Number.isNaN(lastActivityAt) && now - lastActivityAt < MIN_ACTIVITY_REFRESH_MS) {
+      this.scheduleSessionTimeout();
+      return;
+    }
+
+    this.writeSessionRecord({
+      ...session,
+      lastActivityAt: new Date(now).toISOString()
+    });
+    this.scheduleSessionTimeout();
+  }
+
   logout(): void {
-    this.storage.setVaultKey(null);
+    this.clearSessionState();
     this.status.set(this.authRecord ? 'locked' : 'setup-required');
   }
 
   private async persistAuthRecord(record: AuthRecord): Promise<void> {
-    await this.storage.saveAuthRecord(record);
-    this.authRecord = record;
-    this.storedUsername.set(record.username);
-    this.passwordlessEnrolled.set(!!record.passwordless);
+    const normalizedRecord = this.normalizeAuthRecord(record);
+    await this.storage.saveAuthRecord(normalizedRecord);
+    this.authRecord = normalizedRecord;
+    this.storedUsername.set(normalizedRecord.username);
+    this.passwordlessEnrolled.set(!!normalizedRecord.passwordless);
+    this.loginTimeout.set(this.getConfiguredLoginTimeout(normalizedRecord));
   }
 
   private requireAuthRecord(): AuthRecord {
@@ -206,6 +306,15 @@ export class AuthService {
     }
 
     return authRecord.passwordless;
+  }
+
+  private requireSessionRecord(): SessionRecord {
+    const session = this.readSessionRecord();
+    if (!session) {
+      throw new Error('Session data is unavailable.');
+    }
+
+    return session;
   }
 
   private async detectPasswordlessAvailability(): Promise<boolean> {
@@ -334,6 +443,27 @@ export class AuthService {
     return toArrayBuffer(prfOutput);
   }
 
+  private async unlockWithRawVaultKey(
+    rawVaultKey: ArrayBuffer,
+    unlockedWith: SessionRecord['unlockedWith']
+  ): Promise<void> {
+    this.storage.setVaultKey(await this.importVaultKey(rawVaultKey));
+    this.writeSessionRecord({
+      version: 1,
+      vaultKey: bytesToBase64(rawVaultKey),
+      lastActivityAt: new Date().toISOString(),
+      unlockedWith
+    });
+    this.scheduleSessionTimeout();
+  }
+
+  private async restoreSession(session: SessionRecord): Promise<void> {
+    this.storage.setVaultKey(await this.importVaultKey(toArrayBuffer(base64ToBytes(session.vaultKey))));
+    this.writeSessionRecord(session);
+    this.status.set('unlocked');
+    this.scheduleSessionTimeout();
+  }
+
   private requirePublicKeyCredential(
     credential: Credential | null,
     fallbackMessage: string
@@ -395,6 +525,137 @@ export class AuthService {
 
   private randomBytes(length: number): Uint8Array {
     return crypto.getRandomValues(new Uint8Array(length));
+  }
+
+  private normalizeAuthRecord(record: AuthRecord): AuthRecord {
+    return {
+      ...record,
+      loginSettings: {
+        timeout: this.getConfiguredLoginTimeout(record)
+      }
+    };
+  }
+
+  private getConfiguredLoginTimeout(record: AuthRecord | null): LoginTimeoutOption {
+    const timeout = record?.loginSettings?.timeout;
+    return timeout && this.isLoginTimeoutOption(timeout) ? timeout : DEFAULT_LOGIN_TIMEOUT;
+  }
+
+  private isLoginTimeoutOption(value: string): value is LoginTimeoutOption {
+    return LOGIN_TIMEOUT_OPTIONS.some((option) => option.value === value);
+  }
+
+  private readSessionRecord(): SessionRecord | null {
+    const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!storedSession) {
+      return null;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(storedSession);
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        typeof (parsed as SessionRecord).vaultKey !== 'string' ||
+        typeof this.getSessionActivityTimestamp(parsed as SessionRecord) !== 'string' ||
+        ((parsed as SessionRecord).unlockedWith !== 'password' &&
+          (parsed as SessionRecord).unlockedWith !== 'device')
+      ) {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        return null;
+      }
+
+      return {
+        ...(parsed as SessionRecord),
+        lastActivityAt: this.getSessionActivityTimestamp(parsed as SessionRecord) as string
+      };
+    } catch {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      return null;
+    }
+  }
+
+  private writeSessionRecord(session: SessionRecord): void {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  }
+
+  private clearSessionState(): void {
+    this.clearSessionTimer();
+    this.storage.setVaultKey(null);
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  }
+
+  private scheduleSessionTimeout(): void {
+    this.clearSessionTimer();
+
+    const session = this.readSessionRecord();
+    if (!session) {
+      return;
+    }
+
+    const timeoutDuration = this.getTimeoutDuration(this.loginTimeout());
+    if (timeoutDuration === null) {
+      return;
+    }
+
+    const lastActivityAt = Date.parse(session.lastActivityAt);
+    if (Number.isNaN(lastActivityAt)) {
+      this.logout();
+      return;
+    }
+
+    const remaining = timeoutDuration - (Date.now() - lastActivityAt);
+    if (remaining <= 0) {
+      this.logout();
+      return;
+    }
+
+    this.sessionTimer = setTimeout(() => {
+      this.logout();
+    }, remaining);
+  }
+
+  private clearSessionTimer(): void {
+    if (this.sessionTimer !== null) {
+      clearTimeout(this.sessionTimer);
+      this.sessionTimer = null;
+    }
+  }
+
+  private hasSessionExpired(session: SessionRecord): boolean {
+    const timeoutDuration = this.getTimeoutDuration(this.loginTimeout());
+    if (timeoutDuration === null) {
+      return false;
+    }
+
+    const lastActivityAt = Date.parse(session.lastActivityAt);
+    if (Number.isNaN(lastActivityAt)) {
+      return true;
+    }
+
+    return Date.now() - lastActivityAt >= timeoutDuration;
+  }
+
+  private getTimeoutDuration(timeout: LoginTimeoutOption): number | null {
+    switch (timeout) {
+      case 'never':
+      case 'application-unfocus':
+        return null;
+      case '30-minutes':
+        return 30 * 60 * 1000;
+      case '1-hour':
+        return 60 * 60 * 1000;
+      case '6-hours':
+        return 6 * 60 * 60 * 1000;
+      case '12-hours':
+        return 12 * 60 * 60 * 1000;
+      case '24-hours':
+        return 24 * 60 * 60 * 1000;
+    }
+  }
+
+  private getSessionActivityTimestamp(session: SessionRecord): string | undefined {
+    return typeof session.lastActivityAt === 'string' ? session.lastActivityAt : session.unlockedAt;
   }
 
   private getRpId(): string {

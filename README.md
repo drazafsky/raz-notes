@@ -11,6 +11,7 @@ Offline-first Angular notes application with local-only authentication, optional
 - Optionally enable device-backed unlock (for example biometrics or a passkey prompt) when the browser exposes the required offline WebAuthn capabilities
 - Navigate with a shell menu containing Notes and Settings
 - Automatically follows the browser light or dark color-scheme preference
+- Keeps the user signed in across refreshes with a configurable login timeout, including an unfocus-lock option
 - Browse notes on a dedicated list page with created and last-modified timestamps
 - Open a note details page to review and edit a note with its fields prepopulated
 - Notes and attachments are encrypted locally using a password-protected vault stored in the **Origin Private File System (OPFS)**

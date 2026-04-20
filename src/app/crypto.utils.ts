@@ -13,6 +13,27 @@ export interface PasswordlessCredentialRecord {
   createdAt: string;
 }
 
+export type LoginTimeoutOption =
+  | 'never'
+  | '30-minutes'
+  | '1-hour'
+  | '6-hours'
+  | '12-hours'
+  | '24-hours'
+  | 'application-unfocus';
+
+export interface LoginSettingsRecord {
+  timeout: LoginTimeoutOption;
+}
+
+export interface SessionRecord {
+  version: 1;
+  vaultKey: string;
+  lastActivityAt: string;
+  unlockedAt?: string;
+  unlockedWith: 'password' | 'device';
+}
+
 export interface AuthRecord {
   version: 1;
   username: string;
@@ -23,6 +44,7 @@ export interface AuthRecord {
   iterations: number;
   createdAt: string;
   userHandle?: string;
+  loginSettings?: LoginSettingsRecord;
   passwordless?: PasswordlessCredentialRecord;
 }
 
