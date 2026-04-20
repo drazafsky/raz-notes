@@ -5,6 +5,17 @@ export const DEFAULT_TEXT_FONT_SIZE = 24;
 export const DEFAULT_TEXT_ELEMENT_WIDTH = 180;
 export const DEFAULT_TEXT_FONT_FAMILY = 'Inter, ui-sans-serif, system-ui, sans-serif';
 
+export interface NoteContentBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+}
+
 function resolveTextFontSize(element: Partial<Pick<NoteTextElement, 'fontSize'>>): number {
   return typeof element.fontSize === 'number'
     ? Math.max(12, element.fontSize)
@@ -76,8 +87,18 @@ export function normalizeNoteTextElement(
 }
 
 export function computeNoteViewBox(elements: NoteTextElement[]): string {
-  if (elements.length === 0) {
+  const bounds = computeNoteContentBounds(elements);
+  if (!bounds) {
     return DEFAULT_VIEWBOX;
+  }
+
+  const padding = 80;
+  return `${bounds.minX - padding} ${bounds.minY - padding} ${bounds.width + padding * 2} ${bounds.height + padding * 2}`;
+}
+
+export function computeNoteContentBounds(elements: NoteTextElement[]): NoteContentBounds | null {
+  if (elements.length === 0) {
+    return null;
   }
 
   let minX = Number.POSITIVE_INFINITY;
@@ -94,6 +115,17 @@ export function computeNoteViewBox(elements: NoteTextElement[]): string {
     maxY = Math.max(maxY, element.y + height);
   }
 
-  const padding = 80;
-  return `${minX - padding} ${minY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`;
+  const width = maxX - minX;
+  const height = maxY - minY;
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width,
+    height,
+    centerX: minX + width / 2,
+    centerY: minY + height / 2,
+  };
 }

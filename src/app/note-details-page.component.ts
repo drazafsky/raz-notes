@@ -14,6 +14,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
+  computeNoteContentBounds,
   DEFAULT_TEXT_ELEMENT_WIDTH,
   DEFAULT_TEXT_FONT_FAMILY,
   DEFAULT_TEXT_FONT_SIZE,
@@ -66,6 +67,9 @@ const DEFAULT_QUICK_COLORS = [
   '#ffffff',
 ];
 const COLOR_USAGE_STORAGE_KEY = 'raz-notes.text-color-usage';
+const MIN_CANVAS_SCALE = 0.25;
+const MAX_CANVAS_SCALE = 6;
+const FIT_CONTENT_PADDING = 72;
 
 @Component({
   selector: 'app-note-details-page',
@@ -141,13 +145,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   ngAfterViewInit(): void {
     queueMicrotask(() => {
-      const rect = this.svgHostRef?.nativeElement.getBoundingClientRect();
-      if (!rect) {
-        return;
-      }
-
-      this.viewX = rect.width / 2;
-      this.viewY = rect.height / 2;
+      this.initializeCanvasView();
       this.changeDetectorRef.detectChanges();
     });
     void this.loadFontFamilyOptions();
@@ -291,7 +289,10 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   onCanvasWheel(event: WheelEvent): void {
     event.preventDefault();
     const point = this.pointerToCanvas(event);
-    const nextScale = Math.min(6, Math.max(0.25, this.scale * (event.deltaY < 0 ? 1.1 : 0.9)));
+    const nextScale = Math.min(
+      MAX_CANVAS_SCALE,
+      Math.max(MIN_CANVAS_SCALE, this.scale * (event.deltaY < 0 ? 1.1 : 0.9)),
+    );
     if (nextScale === this.scale || !this.svgHostRef) {
       return;
     }
@@ -423,6 +424,23 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   textToolbarY(element: NoteTextElement): number {
     return element.y - this.fontSizeFor(element) - this.textToolbarHeight - 18;
+  }
+
+  centerCanvas(): void {
+    const rect = this.getSvgHostRect();
+    if (!rect) {
+      return;
+    }
+
+    this.applyCenteredView(rect, this.scale);
+  }
+
+  zoomOutToFitCanvas(): void {
+    const rect = this.getSvgHostRect();
+    if (!rect) {
+      return;
+    }
+    this.applyZoomToFitView(rect, Math.min(this.scale, this.fitScaleForRect(rect)));
   }
 
   selectedElement(): NoteTextElement | null {
@@ -867,8 +885,65 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.quickColorOptions = [...new Set([...rankedColors, ...DEFAULT_QUICK_COLORS])].slice(0, 8);
   }
 
+  private initializeCanvasView(): void {
+    const rect = this.getSvgHostRect();
+    if (!rect) {
+      return;
+    }
+
+    if (this.note && this.elements.length > 0) {
+      this.applyZoomToFitView(rect, this.fitScaleForRect(rect));
+      return;
+    }
+
+    this.applyDefaultView(rect);
+  }
+
+  private applyCenteredView(rect: DOMRect, scale: number): void {
+    const bounds = computeNoteContentBounds(this.elements);
+    if (!bounds) {
+      this.applyDefaultView(rect);
+      return;
+    }
+
+    this.scale = Math.min(MAX_CANVAS_SCALE, Math.max(MIN_CANVAS_SCALE, scale));
+    this.viewX = rect.width / 2 - bounds.centerX * this.scale;
+    this.viewY = rect.height / 2 - bounds.centerY * this.scale;
+  }
+
+  private applyDefaultView(rect: Pick<DOMRect, 'width' | 'height'>): void {
+    this.viewX = rect.width / 2;
+    this.viewY = rect.height / 2;
+  }
+
+  private applyZoomToFitView(rect: DOMRect, scale: number): void {
+    this.applyCenteredView(rect, scale);
+  }
+
+  private fitScaleForRect(rect: Pick<DOMRect, 'width' | 'height'>): number {
+    const bounds = computeNoteContentBounds(this.elements);
+    if (!bounds) {
+      return this.scale;
+    }
+
+    return Math.min(
+      MAX_CANVAS_SCALE,
+      Math.max(
+        MIN_CANVAS_SCALE,
+        Math.min(
+          rect.width / Math.max(bounds.width + FIT_CONTENT_PADDING * 2, 1),
+          rect.height / Math.max(bounds.height + FIT_CONTENT_PADDING * 2, 1),
+        ),
+      ),
+    );
+  }
+
+  private getSvgHostRect(): DOMRect | null {
+    return this.svgHostRef?.nativeElement.getBoundingClientRect() ?? null;
+  }
+
   private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {
-    const rect = this.svgHostRef?.nativeElement.getBoundingClientRect();
+    const rect = this.getSvgHostRect();
     if (!rect) {
       return { x: 0, y: 0 };
     }
