@@ -21,11 +21,17 @@ export interface Attachment {
 export interface NoteTextElement {
   id: string;
   text: string;
+  richTextHtml?: string;
   x: number;
   y: number;
   width: number;
   height?: number;
   fontSize: number;
+  color?: string;
+  fontFamily?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
 }
 
 export interface Note {
@@ -230,10 +236,23 @@ export class StorageService {
     return normalizeNoteTextElement({
       id: typeof element['id'] === 'string' ? (element['id'] as string) : `text-${index}`,
       text: typeof element['text'] === 'string' ? (element['text'] as string) : 'New text',
+      richTextHtml:
+        typeof element['richTextHtml'] === 'string'
+          ? (element['richTextHtml'] as string)
+          : undefined,
       x: typeof element['x'] === 'number' ? (element['x'] as number) : 0,
       y: typeof element['y'] === 'number' ? (element['y'] as number) : 0,
       width: typeof element['width'] === 'number' ? (element['width'] as number) : undefined,
       height: typeof element['height'] === 'number' ? (element['height'] as number) : undefined,
+      fontSize:
+        typeof element['fontSize'] === 'number' ? (element['fontSize'] as number) : undefined,
+      color: typeof element['color'] === 'string' ? (element['color'] as string) : undefined,
+      fontFamily:
+        typeof element['fontFamily'] === 'string' ? (element['fontFamily'] as string) : undefined,
+      bold: typeof element['bold'] === 'boolean' ? (element['bold'] as boolean) : undefined,
+      italic: typeof element['italic'] === 'boolean' ? (element['italic'] as boolean) : undefined,
+      underline:
+        typeof element['underline'] === 'boolean' ? (element['underline'] as boolean) : undefined,
     });
   }
 

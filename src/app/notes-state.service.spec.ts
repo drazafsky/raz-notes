@@ -82,7 +82,7 @@ describe('NotesStateService', () => {
     });
 
     expect(updated.elements[0].text).toBe('Updated');
-    expect(updated.elements[0].fontSize).toBe(24);
+    expect(updated.elements[0].fontSize).toBe(28);
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
     expect(auth.recordActivity).toHaveBeenCalled();
