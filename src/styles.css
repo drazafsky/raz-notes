@@ -3,3 +3,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --theme-bg: 241 243 243;
+    --theme-surface: 250 251 251;
+    --theme-text: 25 8 0;
+    --theme-muted: 94 79 74;
+    --theme-brand: 121 144 154;
+    --theme-brand-soft: 227 233 235;
+    --theme-border: 196 207 211;
+    --theme-on-brand: 241 243 243;
+    --theme-accent: 177 90 53;
+    --theme-accent-soft: 244 231 225;
+    --theme-accent-border: 216 170 152;
+    --theme-on-accent: 241 243 243;
+    --theme-backdrop: 25 8 0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --theme-bg: 16 20 22;
+      --theme-surface: 27 33 36;
+      --theme-text: 241 243 243;
+      --theme-muted: 187 197 200;
+      --theme-brand: 102 124 134;
+      --theme-brand-soft: 40 50 54;
+      --theme-border: 67 82 88;
+      --theme-on-brand: 241 243 243;
+      --theme-accent: 198 118 82;
+      --theme-accent-soft: 66 40 31;
+      --theme-accent-border: 120 78 60;
+      --theme-on-accent: 241 243 243;
+      --theme-backdrop: 0 0 0;
+    }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-theme-bg text-theme-text;
+  }
+}

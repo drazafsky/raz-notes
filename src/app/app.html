@@ -1,5 +1,5 @@
-<main class="mx-auto max-w-6xl p-4 font-sans">
-  <header class="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+<main class="mx-auto max-w-6xl p-4 font-sans text-theme-text">
+  <header class="mb-4 rounded-lg border border-theme-border bg-theme-brand px-4 py-3 shadow-sm shadow-theme-brand/20">
     <div class="flex items-start justify-between gap-3">
       <div class="flex items-start gap-3">
         @if (auth.isUnlocked()) {
@@ -8,15 +8,15 @@
             (click)="toggleMobileMenu()"
             aria-label="Open navigation menu"
             title="Open navigation menu"
-            class="inline-flex h-10 w-10 items-center justify-center rounded border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 lg:hidden"
+            class="inline-flex h-10 w-10 items-center justify-center rounded border border-theme-on-brand/30 text-theme-on-brand hover:bg-theme-on-brand/10 focus:outline-none focus:ring-2 focus:ring-theme-accent lg:hidden"
           >
             <i class="fa-solid fa-bars" aria-hidden="true"></i>
           </button>
         }
 
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 lg:text-3xl">Raz Notes</h1>
-          <p class="mt-1 hidden text-gray-500 lg:block">Offline-first notes with local encrypted storage.</p>
+          <h1 class="text-2xl font-bold text-theme-on-brand lg:text-3xl">Raz Notes</h1>
+          <p class="mt-1 hidden text-theme-on-brand/80 lg:block">Offline-first notes with local encrypted storage.</p>
         </div>
       </div>
 
@@ -26,7 +26,7 @@
           (click)="logout()"
           aria-label="Lock notes"
           title="Lock notes"
-          class="inline-flex h-10 w-10 items-center justify-center rounded border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
+          class="inline-flex h-10 w-10 items-center justify-center rounded border border-theme-on-brand/30 text-theme-on-brand hover:bg-theme-on-brand/10 focus:outline-none focus:ring-2 focus:ring-theme-accent"
         >
           <i class="fa-solid fa-lock" aria-hidden="true"></i>
         </button>
@@ -35,128 +35,128 @@
   </header>
 
   @if (auth.status() === 'initializing') {
-    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p class="text-sm text-gray-500">Loading secure local vault…</p>
+    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+      <p class="text-sm text-theme-muted">Loading secure local vault…</p>
     </section>
   } @else if (auth.status() === 'setup-required') {
-    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 class="mb-2 text-xl font-semibold text-gray-800">Create your local account</h2>
-      <p class="mb-4 text-sm text-gray-500">
+    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+      <h2 class="mb-2 text-xl font-semibold text-theme-text">Create your local account</h2>
+      <p class="mb-4 text-sm text-theme-muted">
         This account is created entirely offline. Your password protects note and attachment data stored on this device.
       </p>
 
       @if (authError) {
-        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+        <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ authError }}</p>
       }
 
       <form (ngSubmit)="setupAccount()" class="flex max-w-md flex-col gap-3">
         <div class="flex flex-col gap-1">
-          <label for="setupUsername" class="text-sm font-medium text-gray-700">Username</label>
+          <label for="setupUsername" class="text-sm font-medium text-theme-text">Username</label>
           <input
             id="setupUsername"
             name="setupUsername"
             [(ngModel)]="setupUsername"
             autocomplete="username"
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
           />
         </div>
 
         <div class="flex flex-col gap-1">
-          <label for="setupPassword" class="text-sm font-medium text-gray-700">Password</label>
+          <label for="setupPassword" class="text-sm font-medium text-theme-text">Password</label>
           <input
             id="setupPassword"
             name="setupPassword"
             type="password"
             [(ngModel)]="setupPassword"
             autocomplete="new-password"
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
           />
-          <small class="text-xs text-gray-500">
+          <small class="text-xs text-theme-muted">
             Use at least 8 characters. You can add device unlock later if this browser supports it.
           </small>
         </div>
 
         <div class="flex flex-col gap-1">
-          <label for="setupPasswordConfirm" class="text-sm font-medium text-gray-700">Confirm password</label>
+          <label for="setupPasswordConfirm" class="text-sm font-medium text-theme-text">Confirm password</label>
           <input
             id="setupPasswordConfirm"
             name="setupPasswordConfirm"
             type="password"
             [(ngModel)]="setupPasswordConfirm"
             autocomplete="new-password"
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
           />
         </div>
 
         <button
           type="submit"
-          class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          class="w-fit rounded bg-theme-accent px-4 py-2 text-sm font-medium text-theme-on-accent hover:bg-theme-accent/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
         >
           Create local account
         </button>
       </form>
     </section>
   } @else if (auth.status() === 'locked') {
-    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 class="mb-2 text-xl font-semibold text-gray-800">Unlock your notes</h2>
-      <p class="mb-4 text-sm text-gray-500">
+    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+      <h2 class="mb-2 text-xl font-semibold text-theme-text">Unlock your notes</h2>
+      <p class="mb-4 text-sm text-theme-muted">
         Sign in locally to decrypt your notes and attachments. No internet connection is required.
       </p>
 
       @if (auth.storedUsername()) {
-        <p class="mb-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+        <p class="mb-3 rounded border border-theme-border bg-theme-brand-soft px-3 py-2 text-sm text-theme-text">
           Local account: {{ auth.storedUsername() }}
         </p>
       }
 
       @if (authError) {
-        <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ authError }}</p>
+        <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ authError }}</p>
       }
 
       @if (auth.canUsePasswordless()) {
-        <div class="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3">
-          <p class="text-sm text-emerald-800">Device unlock is enabled on this device.</p>
+        <div class="mb-4 rounded border border-theme-border bg-theme-brand-soft p-3">
+          <p class="text-sm text-theme-text">Device unlock is enabled on this device.</p>
           <button
             type="button"
             (click)="loginWithDevice()"
-            class="mt-3 rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+            class="mt-3 rounded bg-theme-brand px-4 py-2 text-sm font-medium text-theme-on-brand hover:bg-theme-brand/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
           >
             Unlock with device
           </button>
         </div>
       } @else if (auth.passwordlessEnrolled() && !auth.passwordlessAvailable()) {
-        <p class="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p class="mb-4 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
           Device unlock was enabled before, but this browser cannot use it right now. Use your password instead.
         </p>
       }
 
       <form (ngSubmit)="login()" class="flex max-w-md flex-col gap-3">
         <div class="flex flex-col gap-1">
-          <label for="loginUsername" class="text-sm font-medium text-gray-700">Username</label>
+          <label for="loginUsername" class="text-sm font-medium text-theme-text">Username</label>
           <input
             id="loginUsername"
             name="loginUsername"
             [(ngModel)]="loginUsername"
             autocomplete="username"
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
           />
         </div>
 
         <div class="flex flex-col gap-1">
-          <label for="loginPassword" class="text-sm font-medium text-gray-700">Password</label>
+          <label for="loginPassword" class="text-sm font-medium text-theme-text">Password</label>
           <input
             id="loginPassword"
             name="loginPassword"
             type="password"
             [(ngModel)]="loginPassword"
             autocomplete="current-password"
-            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
           />
         </div>
 
         <button
           type="submit"
-          class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          class="w-fit rounded bg-theme-accent px-4 py-2 text-sm font-medium text-theme-on-accent hover:bg-theme-accent/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
         >
           Unlock notes
         </button>
@@ -169,26 +169,26 @@
           type="button"
           (click)="closeMobileMenu()"
           aria-label="Close navigation menu"
-          class="fixed inset-0 z-40 bg-gray-900/40 lg:hidden"
+          class="fixed inset-0 z-40 bg-theme-backdrop/45 lg:hidden"
         ></button>
       }
 
       <aside
-        class="fixed inset-y-0 left-0 z-50 flex h-full w-72 max-w-[85vw] transform flex-col border-r border-gray-200 bg-white p-4 shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:w-full lg:max-w-xs lg:translate-x-0 lg:rounded-lg lg:border lg:shadow-sm"
+        class="fixed inset-y-0 left-0 z-50 flex h-full w-72 max-w-[85vw] transform flex-col border-r border-theme-border bg-theme-surface p-4 shadow-xl shadow-theme-backdrop/20 transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:w-full lg:max-w-xs lg:translate-x-0 lg:rounded-lg lg:border lg:shadow-sm"
         [class.-translate-x-full]="!mobileMenuOpen()"
         [class.translate-x-0]="mobileMenuOpen()"
       >
-        <div class="mb-4 border-b border-gray-100 pb-4 lg:hidden">
-          <div class="text-2xl font-bold text-gray-900">Raz Notes</div>
-          <p class="mt-1 text-sm text-gray-500">Notes and settings</p>
+        <div class="mb-4 border-b border-theme-border pb-4 lg:hidden">
+          <div class="text-2xl font-bold text-theme-text">Raz Notes</div>
+          <p class="mt-1 text-sm text-theme-muted">Notes and settings</p>
         </div>
 
         <nav aria-label="Primary navigation" class="flex h-full flex-col gap-2">
-          <div class="lg:rounded lg:border lg:border-gray-100">
+          <div class="lg:rounded lg:border lg:border-theme-border">
             <div
               class="flex w-full items-center justify-between px-0 py-2 lg:rounded lg:px-3"
-              [class.bg-blue-50]="isNotesRouteActive()"
-              [class.text-blue-700]="isNotesRouteActive()"
+              [class.bg-theme-brand-soft]="isNotesRouteActive()"
+              [class.text-theme-text]="isNotesRouteActive()"
             >
               <a
                 routerLink="/notes"
@@ -201,19 +201,19 @@
                 type="button"
                 (click)="toggleNotesMenu()"
                 [attr.aria-label]="notesMenuExpanded() ? 'Collapse notes menu' : 'Expand notes menu'"
-                class="px-2 text-sm text-gray-500 hover:text-gray-700"
+                class="px-2 text-sm text-theme-muted hover:text-theme-accent"
               >
                 {{ notesMenuExpanded() ? '▾' : '▸' }}
               </button>
             </div>
 
             @if (notesMenuExpanded()) {
-              <div class="py-2 lg:border-t lg:border-gray-100 lg:px-2">
+              <div class="py-2 lg:border-t lg:border-theme-border lg:px-2">
                 <a
                   routerLink="/notes/new"
                   (click)="closeMobileMenu()"
-                  routerLinkActive="bg-blue-100 text-blue-700"
-                  class="mb-1 block w-full rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  routerLinkActive="bg-theme-brand-soft text-theme-text"
+                  class="mb-1 block w-full rounded px-3 py-2 text-sm text-theme-text hover:bg-theme-brand-soft"
                 >
                   New Note
                 </a>
@@ -222,8 +222,8 @@
                   <a
                     [routerLink]="['/notes', note.id]"
                     (click)="closeMobileMenu()"
-                    routerLinkActive="bg-blue-100 text-blue-700"
-                    class="mb-1 block w-full rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    routerLinkActive="bg-theme-brand-soft text-theme-text"
+                    class="mb-1 block w-full rounded px-3 py-2 text-sm text-theme-text hover:bg-theme-brand-soft"
                   >
                     {{ note.title }}
                   </a>
@@ -236,8 +236,8 @@
             <a
               routerLink="/settings"
               (click)="closeMobileMenu()"
-              routerLinkActive="bg-blue-100 text-blue-700"
-              class="block w-full rounded px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+              routerLinkActive="bg-theme-brand-soft text-theme-text"
+              class="block w-full rounded px-3 py-2 text-sm font-medium text-theme-text hover:bg-theme-brand-soft"
             >
               Settings
             </a>
@@ -247,7 +247,7 @@
 
       <section class="min-w-0 flex-1 lg:pl-0">
         @if (authError) {
-          <section class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <section class="mb-4 rounded-lg border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
             {{ authError }}
           </section>
         }
