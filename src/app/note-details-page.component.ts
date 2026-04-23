@@ -295,11 +295,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasDragOver(event: DragEvent): void {
-    if (!event.dataTransfer || event.dataTransfer.files.length === 0) {
+    if (!this.isFileDrag(event)) {
       return;
     }
 
     event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
     this.isCanvasDragActive = true;
   }
 
@@ -313,6 +316,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   onCanvasDrop(event: DragEvent): void {
     this.isCanvasDragActive = false;
+    if (!this.isFileDrag(event)) {
+      return;
+    }
+
     const files = event.dataTransfer ? Array.from(event.dataTransfer.files) : [];
     if (files.length === 0) {
       return;
@@ -2467,5 +2474,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       x: (event.clientX - rect.left - this.viewX) / this.scale,
       y: (event.clientY - rect.top - this.viewY) / this.scale,
     };
+  }
+
+  private isFileDrag(event: DragEvent): boolean {
+    if (!event.dataTransfer) {
+      return false;
+    }
+
+    if (event.dataTransfer.files.length > 0) {
+      return true;
+    }
+
+    return Array.from(event.dataTransfer.types).includes('Files');
   }
 }

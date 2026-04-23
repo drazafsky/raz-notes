@@ -240,6 +240,25 @@ describe('NoteDetailsPageComponent', () => {
     ).toBe('demo.pdf');
   });
 
+  it('accepts external file drags during canvas dragover before files are populated', async () => {
+    const fixture = await createComponent();
+    const preventDefault = jasmine.createSpy('preventDefault');
+    const dragEvent = {
+      dataTransfer: {
+        files: { length: 0 },
+        types: ['Files'],
+        dropEffect: 'none',
+      },
+      preventDefault,
+    } as unknown as DragEvent;
+
+    fixture.componentInstance.onCanvasDragOver(dragEvent);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(dragEvent.dataTransfer?.dropEffect).toBe('copy');
+    expect(fixture.componentInstance.isCanvasDragActive).toBeTrue();
+  });
+
   it('clicking a rendered checklist item enters edit mode through DOM events', async () => {
     const notesState = new MockNotesStateService();
     notesState.note = {
