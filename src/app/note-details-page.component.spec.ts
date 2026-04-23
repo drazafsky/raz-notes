@@ -476,11 +476,13 @@ describe('NoteDetailsPageComponent', () => {
     const zoomOutButton = fixture.nativeElement.querySelector(
       'button[aria-label="Zoom out to fit"]',
     );
+    const canvasGrid = fixture.nativeElement.querySelector('[data-canvas-grid="true"]');
 
     expect(fixture.nativeElement.querySelector('button[aria-label="Selection tool"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('button[aria-label="Text tool"]')).toBeTruthy();
     expect(centerCanvasButton).toBeTruthy();
     expect(zoomOutButton).toBeTruthy();
+    expect(canvasGrid?.parentElement?.tagName.toLowerCase()).toBe('g');
     expect(selectionRect.getAttribute('stroke-dasharray')).toBe('8 6');
     expect(textNode.style.cursor).toBe('move');
     expect(fixture.nativeElement.textContent).not.toContain('Selected text');
