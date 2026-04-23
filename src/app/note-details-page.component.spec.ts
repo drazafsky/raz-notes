@@ -647,6 +647,117 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Clear date');
   });
 
+  it('shows a full formatting toolbar for the active checklist item editor', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string }[];
+    };
+
+    expect(
+      fixture.nativeElement.querySelector('[data-checklist-item-toolbar="true"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector(
+        `#checklist-font-family-${checklist.id}-${checklist.items[0].id}`,
+      ),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector(
+        `#checklist-font-size-${checklist.id}-${checklist.items[0].id}`,
+      ),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector(
+        `#checklist-text-color-${checklist.id}-${checklist.items[0].id}`,
+      ),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item bold"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item italic"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item underline"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item strikethrough"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item subscript"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Checklist item superscript"]'),
+    ).toBeTruthy();
+  });
+
+  it('applies checklist item formatting from the local toolbar without ending edit mode', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; richTextHtml?: string }[];
+    };
+    const itemId = checklist.items[0].id;
+    const editor = fixture.nativeElement.querySelector(
+      `#${fixture.componentInstance.checklistEditorId(checklist.id, itemId)}`,
+    ) as HTMLDivElement;
+
+    editor.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fixture.componentInstance.onDocumentSelectionChange();
+
+    const boldButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Checklist item bold"]',
+    ) as HTMLButtonElement;
+    boldButton.click();
+    fixture.componentInstance.changeChecklistItemFontSize(checklist.id, itemId, 32);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const updatedChecklist = fixture.componentInstance.elements.at(-1) as {
+      items: { id: string; richTextHtml?: string }[];
+    };
+    const updatedItem = updatedChecklist.items[0];
+
+    expect(updatedItem.id).toBe(itemId);
+    expect(updatedItem.richTextHtml).toContain('font-size: 32px');
+    expect(updatedItem.richTextHtml).toContain('font-weight');
+    expect(fixture.componentInstance.editingChecklistItemId).toBe(itemId);
+  });
+
   it('deletes a checklist item from its row action', async () => {
     const fixture = await createComponent();
 

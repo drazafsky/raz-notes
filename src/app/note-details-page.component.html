@@ -363,54 +363,6 @@
                       >
                         Clear date
                       </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist bold"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm font-bold text-theme-text"
-                        (click)="applyChecklistInlineCommand('bold')"
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist italic"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm italic text-theme-text"
-                        (click)="applyChecklistInlineCommand('italic')"
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist underline"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm underline text-theme-text"
-                        (click)="applyChecklistInlineCommand('underline')"
-                      >
-                        U
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist strikethrough"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm line-through text-theme-text"
-                        (click)="applyChecklistInlineCommand('strikeThrough')"
-                      >
-                        S
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist subscript"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
-                        (click)="applyChecklistInlineCommand('subscript')"
-                      >
-                        X<sub>2</sub>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Checklist superscript"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
-                        (click)="applyChecklistInlineCommand('superscript')"
-                      >
-                        X<sup>2</sup>
-                      </button>
                     </div>
                   </foreignObject>
                 }
@@ -529,6 +481,184 @@
                               </button>
                               <div class="min-w-0 flex-1">
                                 @if (checklistItemIsEditing(element.id, row.item.id)) {
+                                  <div
+                                    xmlns="http://www.w3.org/1999/xhtml"
+                                    data-checklist-item-toolbar="true"
+                                    class="mb-2 flex flex-wrap items-center gap-1 rounded-lg border border-theme-border bg-theme-surface px-2 py-1 shadow-sm shadow-theme-brand/10"
+                                    (pointerdown)="$event.stopPropagation()"
+                                  >
+                                    <label
+                                      class="sr-only"
+                                      [for]="
+                                        'checklist-font-family-' + element.id + '-' + row.item.id
+                                      "
+                                      >Checklist item font family</label
+                                    >
+                                    <select
+                                      [id]="
+                                        'checklist-font-family-' + element.id + '-' + row.item.id
+                                      "
+                                      [name]="
+                                        'checklist-font-family-' + element.id + '-' + row.item.id
+                                      "
+                                      [ngModel]="checklistToolbarFontFamilyValue()"
+                                      (ngModelChange)="
+                                        changeChecklistItemFontFamily(
+                                          element.id,
+                                          row.item.id,
+                                          $event
+                                        )
+                                      "
+                                      class="h-8 min-w-24 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+                                    >
+                                      @for (option of fontFamilyOptions; track option.value) {
+                                        <option [ngValue]="option.value">{{ option.label }}</option>
+                                      }
+                                    </select>
+
+                                    <label
+                                      class="sr-only"
+                                      [for]="
+                                        'checklist-font-size-' + element.id + '-' + row.item.id
+                                      "
+                                      >Checklist item font size</label
+                                    >
+                                    <select
+                                      [id]="'checklist-font-size-' + element.id + '-' + row.item.id"
+                                      [name]="
+                                        'checklist-font-size-' + element.id + '-' + row.item.id
+                                      "
+                                      [ngModel]="checklistToolbarFontSizeValue()"
+                                      (ngModelChange)="
+                                        changeChecklistItemFontSize(element.id, row.item.id, $event)
+                                      "
+                                      class="h-8 w-20 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+                                    >
+                                      @for (size of fontSizeOptions; track size) {
+                                        <option [ngValue]="size">{{ size }} px</option>
+                                      }
+                                    </select>
+
+                                    <label
+                                      class="sr-only"
+                                      [for]="
+                                        'checklist-text-color-' + element.id + '-' + row.item.id
+                                      "
+                                      >Checklist item text color</label
+                                    >
+                                    <input
+                                      [id]="
+                                        'checklist-text-color-' + element.id + '-' + row.item.id
+                                      "
+                                      [name]="
+                                        'checklist-text-color-' + element.id + '-' + row.item.id
+                                      "
+                                      type="color"
+                                      [ngModel]="checklistToolbarTextColorValue()"
+                                      (ngModelChange)="
+                                        changeChecklistItemColor(element.id, row.item.id, $event)
+                                      "
+                                      class="h-8 w-10 cursor-pointer rounded border border-theme-border bg-theme-bg p-1"
+                                    />
+
+                                    <div class="flex items-center gap-1">
+                                      @for (color of quickColorOptions; track color) {
+                                        <button
+                                          type="button"
+                                          [attr.aria-label]="
+                                            'Checklist item quick select color ' + color
+                                          "
+                                          class="h-6 w-6 rounded-full border border-theme-border"
+                                          [style.backgroundColor]="color"
+                                          (click)="
+                                            changeChecklistItemColor(element.id, row.item.id, color)
+                                          "
+                                        ></button>
+                                      }
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item bold"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm font-bold text-theme-text"
+                                      (click)="
+                                        toggleChecklistItemFormat(element.id, row.item.id, 'bold')
+                                      "
+                                    >
+                                      B
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item italic"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm italic text-theme-text"
+                                      (click)="
+                                        toggleChecklistItemFormat(element.id, row.item.id, 'italic')
+                                      "
+                                    >
+                                      I
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item underline"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm underline text-theme-text"
+                                      (click)="
+                                        toggleChecklistItemFormat(
+                                          element.id,
+                                          row.item.id,
+                                          'underline'
+                                        )
+                                      "
+                                    >
+                                      U
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item strikethrough"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm line-through text-theme-text"
+                                      (click)="
+                                        applyChecklistItemInlineCommand(
+                                          element.id,
+                                          row.item.id,
+                                          'strikeThrough'
+                                        )
+                                      "
+                                    >
+                                      S
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item subscript"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                                      (click)="
+                                        applyChecklistItemInlineCommand(
+                                          element.id,
+                                          row.item.id,
+                                          'subscript'
+                                        )
+                                      "
+                                    >
+                                      X<sub>2</sub>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      aria-label="Checklist item superscript"
+                                      class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                                      (click)="
+                                        applyChecklistItemInlineCommand(
+                                          element.id,
+                                          row.item.id,
+                                          'superscript'
+                                        )
+                                      "
+                                    >
+                                      X<sup>2</sup>
+                                    </button>
+                                  </div>
                                   <div
                                     xmlns="http://www.w3.org/1999/xhtml"
                                     [id]="checklistEditorId(element.id, row.item.id)"

@@ -915,18 +915,71 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.setChecklistItemDueDate(this.selectedElementId, this.selectedChecklistItemId, undefined);
   }
 
-  applyChecklistInlineCommand(
-    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
-  ): void {
-    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+  checklistToolbarFontFamilyValue(): string {
+    return this.defaultTextFontFamily;
+  }
+
+  checklistToolbarFontSizeValue(): number {
+    return DEFAULT_TEXT_FONT_SIZE;
+  }
+
+  checklistToolbarTextColorValue(): string {
+    return this.defaultTextColor;
+  }
+
+  changeChecklistItemColor(elementId: string, itemId: string, color: string): void {
+    this.recordColorUsage(color);
+    this.applyChecklistStyleToSelection(
+      elementId,
+      itemId,
+      () => {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('foreColor', false, color);
+      },
+      true,
+    );
+  }
+
+  changeChecklistItemFontFamily(elementId: string, itemId: string, fontFamily: string): void {
+    this.applyChecklistStyleToSelection(
+      elementId,
+      itemId,
+      () => {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('fontName', false, fontFamily);
+      },
+      true,
+    );
+  }
+
+  changeChecklistItemFontSize(elementId: string, itemId: string, value: string | number): void {
+    const fontSize = Number(value);
+    if (!Number.isFinite(fontSize)) {
       return;
     }
 
-    this.applyChecklistItemEditorCommand(
-      this.selectedElementId,
-      this.selectedChecklistItemId,
-      command,
+    this.applyChecklistStyleToSelection(
+      elementId,
+      itemId,
+      () => this.wrapSelectionWithStyledSpan({ fontSize: `${Math.max(12, fontSize)}px` }),
+      true,
     );
+  }
+
+  toggleChecklistItemFormat(
+    elementId: string,
+    itemId: string,
+    format: 'bold' | 'italic' | 'underline',
+  ): void {
+    this.applyChecklistItemEditorCommand(elementId, itemId, format);
+  }
+
+  applyChecklistItemInlineCommand(
+    elementId: string,
+    itemId: string,
+    command: 'strikeThrough' | 'subscript' | 'superscript',
+  ): void {
+    this.applyChecklistItemEditorCommand(elementId, itemId, command);
   }
 
   onChecklistItemPointerDown(event: PointerEvent, elementId: string, itemId: string): void {
@@ -968,7 +1021,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     const nextTarget = event?.relatedTarget;
     if (
       nextTarget instanceof HTMLElement &&
-      nextTarget.closest('[data-checklist-toolbar="true"]')
+      nextTarget.closest('[data-checklist-toolbar="true"], [data-checklist-item-toolbar="true"]')
     ) {
       return;
     }
@@ -1296,23 +1349,6 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  private applyChecklistItemEditorCommand(
-    elementId: string,
-    itemId: string,
-    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
-  ): boolean {
-    const editor = this.getChecklistEditorElement(elementId, itemId);
-    if (!editor || !this.restoreEditorSelection(editor)) {
-      return false;
-    }
-
-    document.execCommand('styleWithCSS', false, 'true');
-    document.execCommand(command);
-    this.updateChecklistItemText(elementId, itemId, editor.innerHTML);
-    this.captureEditorSelection(editor);
-    return true;
-  }
-
   private reorderChecklistItemFromPointer(deltaY: number): void {
     const state = this.checklistReorderState;
     if (!state) {
@@ -1364,7 +1400,35 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     applySelectionCommand: (editor: HTMLDivElement) => void,
     allowCollapsed = false,
   ): boolean {
-    const editor = this.getInlineEditorElement(elementId);
+    return this.applyStyleToEditorSelection(
+      () => this.getInlineEditorElement(elementId),
+      (editor) => this.syncElementFromEditor(elementId, editor),
+      applySelectionCommand,
+      allowCollapsed,
+    );
+  }
+
+  private applyChecklistStyleToSelection(
+    elementId: string,
+    itemId: string,
+    applySelectionCommand: (editor: HTMLDivElement) => void,
+    allowCollapsed = false,
+  ): boolean {
+    return this.applyStyleToEditorSelection(
+      () => this.getChecklistEditorElement(elementId, itemId),
+      (editor) => this.updateChecklistItemText(elementId, itemId, editor.innerHTML),
+      applySelectionCommand,
+      allowCollapsed,
+    );
+  }
+
+  private applyStyleToEditorSelection(
+    getEditor: () => HTMLDivElement | null,
+    syncEditor: (editor: HTMLDivElement) => void,
+    applySelectionCommand: (editor: HTMLDivElement) => void,
+    allowCollapsed = false,
+  ): boolean {
+    const editor = getEditor();
     if (!editor || !this.restoreEditorSelection(editor)) {
       return false;
     }
@@ -1375,7 +1439,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     applySelectionCommand(editor);
-    this.syncElementFromEditor(elementId, editor);
+    syncEditor(editor);
     this.captureEditorSelection(editor);
     return true;
   }
@@ -1455,6 +1519,22 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
         document.execCommand(command);
       },
       allowCollapsed,
+    );
+  }
+
+  private applyChecklistItemEditorCommand(
+    elementId: string,
+    itemId: string,
+    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
+  ): boolean {
+    return this.applyChecklistStyleToSelection(
+      elementId,
+      itemId,
+      () => {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand(command);
+      },
+      true,
     );
   }
 
