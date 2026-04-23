@@ -118,7 +118,11 @@ describe('App', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(fixture.nativeElement.textContent).toContain('Menu');
+    const mobileMenuButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Open navigation menu"]'
+    );
+
+    expect(mobileMenuButton).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('Notes');
     expect(fixture.nativeElement.textContent).toContain('New Note');
     expect(fixture.nativeElement.textContent).toContain('Settings');
