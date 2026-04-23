@@ -1,51 +1,83 @@
-<main>
-  <h1>Raz Notes</h1>
-  <p>Offline-first notes with local storage persistence.</p>
+<main class="mx-auto max-w-2xl p-4 font-sans">
+  <h1 class="mb-1 text-3xl font-bold text-gray-900">Raz Notes</h1>
+  <p class="mb-4 text-gray-500">Offline-first notes with local storage persistence.</p>
 
-  <section class="card">
-    <h2>Create note</h2>
-    <form (ngSubmit)="createNote()">
-      <label for="kind">Type</label>
-      <select id="kind" name="kind" [(ngModel)]="noteKind">
-        <option value="text">Plain text</option>
-        <option value="todo">Todo list</option>
-      </select>
+  <section class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <h2 class="mb-3 text-xl font-semibold text-gray-800">Create note</h2>
+    <form (ngSubmit)="createNote()" class="flex flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <label for="kind" class="text-sm font-medium text-gray-700">Type</label>
+        <select
+          id="kind"
+          name="kind"
+          [(ngModel)]="noteKind"
+          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="text">Plain text</option>
+          <option value="todo">Todo list</option>
+        </select>
+      </div>
 
-      <label for="title">Title</label>
-      <input id="title" name="title" [(ngModel)]="noteTitle" required />
+      <div class="flex flex-col gap-1">
+        <label for="title" class="text-sm font-medium text-gray-700">Title</label>
+        <input
+          id="title"
+          name="title"
+          [(ngModel)]="noteTitle"
+          required
+          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
 
       @if (noteKind === 'text') {
-        <label for="text">Text</label>
-        <textarea id="text" name="text" rows="4" [(ngModel)]="noteText" required></textarea>
+        <div class="flex flex-col gap-1">
+          <label for="text" class="text-sm font-medium text-gray-700">Text</label>
+          <textarea
+            id="text"
+            name="text"
+            rows="4"
+            [(ngModel)]="noteText"
+            required
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
       } @else {
-        <label for="todo">Todo items (one per line)</label>
-        <textarea
-          id="todo"
-          name="todo"
-          rows="4"
-          [(ngModel)]="todoText"
-          required
-        ></textarea>
+        <div class="flex flex-col gap-1">
+          <label for="todo" class="text-sm font-medium text-gray-700">Todo items (one per line)</label>
+          <textarea
+            id="todo"
+            name="todo"
+            rows="4"
+            [(ngModel)]="todoText"
+            required
+            class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
       }
 
-      <button type="submit">Create note</button>
+      <button
+        type="submit"
+        class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 cursor-pointer"
+      >
+        Create note
+      </button>
     </form>
   </section>
 
-  <section class="card">
-    <h2>Saved notes</h2>
+  <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <h2 class="mb-3 text-xl font-semibold text-gray-800">Saved notes</h2>
     @if (notes().length === 0) {
-      <p>No notes yet.</p>
+      <p class="text-gray-500">No notes yet.</p>
     } @else {
-      <ul>
+      <ul class="flex flex-col gap-4">
         @for (note of notes(); track note.id) {
-          <li>
-            <h3>{{ note.title }}</h3>
-            <small>{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
+          <li class="rounded border border-gray-100 bg-gray-50 p-3">
+            <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
+            <small class="text-xs text-gray-400">{{ note.kind }} · {{ note.createdAt | date: 'short' }}</small>
             @if (note.kind === 'text') {
-              <p>{{ note.text }}</p>
+              <p class="mt-1 text-sm text-gray-700">{{ note.text }}</p>
             } @else {
-              <ol>
+              <ol class="mt-2 list-decimal pl-5 text-sm text-gray-700">
                 @for (todo of note.todos; track $index) {
                   <li>{{ todo }}</li>
                 }
