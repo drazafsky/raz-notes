@@ -1,12 +1,15 @@
-import { computed, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 
 import { App } from './app';
 import { AuthService, AuthStatus } from './auth.service';
 import { LoginTimeoutOption } from './crypto.utils';
 import { Note } from './storage.service';
 import { NotesStateService } from './notes-state.service';
+
+@Component({ template: '' })
+class DummyRouteComponent {}
 
 class MockAuthService {
   readonly status = signal<AuthStatus>('unlocked');
@@ -55,9 +58,8 @@ class MockNotesStateService {
   readonly notes = signal<Note[]>([
     {
       id: 7,
-      kind: 'text',
       title: 'Existing note',
-      text: 'Saved body',
+      elements: [{ id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
       attachments: []
@@ -84,7 +86,12 @@ describe('App', () => {
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
-        provideRouter([]),
+        provideRouter([
+          { path: 'notes', component: DummyRouteComponent },
+          { path: 'notes/new', component: DummyRouteComponent },
+          { path: 'notes/:id', component: DummyRouteComponent },
+          { path: 'settings', component: DummyRouteComponent }
+        ]),
         { provide: AuthService, useValue: mockAuth },
         { provide: NotesStateService, useValue: mockNotesState }
       ]
@@ -148,5 +155,24 @@ describe('App', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A' }));
 
     expect(mockAuth.recordActivity).toHaveBeenCalled();
+  });
+
+  it('collapses navigation on note editor routes until toggled open', async () => {
+    const fixture = TestBed.createComponent(App);
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/notes/7');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.isNoteEditorRoute()).toBeTrue();
+    expect(fixture.componentInstance.mobileMenuOpen()).toBeFalse();
+
+    fixture.componentInstance.toggleMobileMenu();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.mobileMenuOpen()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('button[aria-label="Close navigation menu"]')).toBeTruthy();
   });
 });

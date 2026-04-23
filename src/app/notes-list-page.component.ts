@@ -3,8 +3,10 @@ import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
+import { computeNoteViewBox, estimateTextElementHeight } from './note-svg.utils';
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
+import { Note, NoteTextElement } from './storage.service';
 
 @Component({
   selector: 'app-notes-list-page',
@@ -49,5 +51,13 @@ export class NotesListPageComponent {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  previewViewBox(note: Note): string {
+    return computeNoteViewBox(note.elements);
+  }
+
+  estimateElementHeight(element: NoteTextElement): number {
+    return estimateTextElementHeight(element);
   }
 }

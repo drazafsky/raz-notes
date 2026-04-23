@@ -30,9 +30,8 @@ class MockNotesStateService {
   readonly notes = signal<Note[]>([
     {
       id: 1,
-      kind: 'text',
       title: 'Saved',
-      text: 'Body',
+      elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
       attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
@@ -64,7 +63,6 @@ describe('NotesListPageComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('Saved');
-    expect(fixture.nativeElement.textContent).toContain('text');
     expect(fixture.nativeElement.textContent).toContain('Last modified');
     expect(fixture.nativeElement.textContent).toContain('file.txt');
     expect(fixture.nativeElement.textContent).toContain('Delete');

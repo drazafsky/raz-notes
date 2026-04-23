@@ -1,13 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth.service';
-import { Note, NoteKind, StorageService } from './storage.service';
+import { Note, NoteTextElement, StorageService } from './storage.service';
 
 export interface NoteInput {
-  kind: NoteKind;
   title: string;
-  text?: string;
-  todos?: string[];
+  elements: NoteTextElement[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -40,19 +38,16 @@ export class NotesStateService {
     const now = new Date().toISOString();
     const note: Note = {
       id: Date.now(),
-      kind: input.kind,
       title: input.title.trim(),
       createdAt: now,
       lastModifiedAt: now,
+      elements: input.elements.map((element) => ({ ...element })),
       attachments: files.map((file) => ({
         id: crypto.randomUUID(),
         name: file.name,
         type: file.type,
         size: file.size
-      })),
-      ...(input.kind === 'text'
-        ? { text: input.text?.trim() ?? '' }
-        : { todos: input.todos ?? [] })
+      }))
     };
 
     const updatedNotes = [note, ...this.notes()];
@@ -71,14 +66,11 @@ export class NotesStateService {
     const existing = this.requireNote(noteId);
     const updatedNote: Note = {
       id: existing.id,
-      kind: input.kind,
       title: input.title.trim(),
       createdAt: existing.createdAt,
       lastModifiedAt: new Date().toISOString(),
       attachments: existing.attachments,
-      ...(input.kind === 'text'
-        ? { text: input.text?.trim() ?? '' }
-        : { todos: input.todos ?? [] })
+      elements: input.elements.map((element) => ({ ...element }))
     };
 
     const updatedNotes = this.notes().map((note) => (note.id === noteId ? updatedNote : note));

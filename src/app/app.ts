@@ -15,6 +15,7 @@ export class App {
   readonly auth = inject(AuthService);
   readonly notesState = inject(NotesStateService);
   private readonly router = inject(Router);
+  private readonly currentUrl = signal(this.router.url);
 
   authError = '';
   setupUsername = '';
@@ -37,6 +38,9 @@ export class App {
       if (!(event instanceof NavigationEnd)) {
         return;
       }
+
+      this.currentUrl.set(event.urlAfterRedirects);
+      this.closeMobileMenu();
 
       if (!this.hasCompletedInitialNavigation) {
         this.hasCompletedInitialNavigation = true;
@@ -168,6 +172,14 @@ export class App {
 
   isSettingsRouteActive(): boolean {
     return this.router.url.startsWith('/settings');
+  }
+
+  isNoteEditorRoute(): boolean {
+    return /^\/notes(?:\/new|\/\d+)(?:$|[/?#])/.test(this.currentUrl());
+  }
+
+  navigationMenuLabel(): string {
+    return this.mobileMenuOpen() ? 'Close navigation menu' : 'Open navigation menu';
   }
 
   private errorMessage(error: unknown): string {
