@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 
 import { App } from './app';
 import { AuthService, AuthStatus } from './auth.service';
-import { Note, NoteKind } from './storage.service';
+import { Note } from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
 class MockAuthService {
@@ -41,8 +41,19 @@ class MockAuthService {
 }
 
 class MockNotesStateService {
-  readonly notes = signal<Note[]>([]);
+  readonly notes = signal<Note[]>([
+    {
+      id: 7,
+      kind: 'text',
+      title: 'Existing note',
+      text: 'Saved body',
+      createdAt: '2026-04-19T00:00:00.000Z',
+      lastModifiedAt: '2026-04-19T01:00:00.000Z',
+      attachments: []
+    }
+  ]);
   readonly notesByUpdatedAt = computed(() => this.notes());
+  readonly notesByTitle = computed(() => this.notes());
 
   load = jasmine.createSpy('load').and.returnValue(Promise.resolve());
   clear = jasmine.createSpy('clear');
@@ -107,7 +118,10 @@ describe('App', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(fixture.nativeElement.textContent).toContain('All notes');
-    expect(fixture.nativeElement.textContent).toContain('New note');
+    expect(fixture.nativeElement.textContent).toContain('Menu');
+    expect(fixture.nativeElement.textContent).toContain('Notes');
+    expect(fixture.nativeElement.textContent).toContain('New Note');
+    expect(fixture.nativeElement.textContent).toContain('Settings');
+    expect(fixture.nativeElement.textContent).toContain('Existing note');
   });
 });
