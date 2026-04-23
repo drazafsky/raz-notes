@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, HostListener, effect, inject, signal } from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { AuthService } from './auth.service';
@@ -24,9 +24,28 @@ export class App {
   loginPassword = '';
   readonly notesMenuExpanded = signal(true);
   readonly mobileMenuOpen = signal(false);
+  private hasCompletedInitialNavigation = false;
 
   constructor() {
-    void this.auth.init();
+    effect(() => {
+      if (this.auth.status() !== 'unlocked') {
+        this.notesState.clear();
+        this.closeMobileMenu();
+      }
+    });
+    this.router.events.subscribe((event) => {
+      if (!(event instanceof NavigationEnd)) {
+        return;
+      }
+
+      if (!this.hasCompletedInitialNavigation) {
+        this.hasCompletedInitialNavigation = true;
+        return;
+      }
+
+      this.auth.recordActivity();
+    });
+    void this.initializeApp();
   }
 
   async setupAccount(): Promise<void> {
@@ -121,6 +140,28 @@ export class App {
     this.mobileMenuOpen.set(false);
   }
 
+  @HostListener('window:blur')
+  onWindowBlur(): void {
+    this.auth.lockForUnfocus();
+  }
+
+  @HostListener('document:pointerdown')
+  onPointerDown(): void {
+    this.auth.recordActivity();
+  }
+
+  @HostListener('document:keydown')
+  onKeyDown(): void {
+    this.auth.recordActivity();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.auth.lockForUnfocus();
+    }
+  }
+
   isNotesRouteActive(): boolean {
     return this.router.url.startsWith('/notes');
   }
@@ -131,5 +172,20 @@ export class App {
 
   private errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Something went wrong.';
+  }
+
+  private async initializeApp(): Promise<void> {
+    try {
+      await this.auth.init();
+      if (this.auth.isUnlocked()) {
+        await this.notesState.load();
+      }
+    } catch (error) {
+      this.authError = this.errorMessage(error);
+      this.notesState.clear();
+      if (this.auth.isUnlocked()) {
+        this.auth.logout();
+      }
+    }
   }
 }

@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 
 import { App } from './app';
 import { AuthService, AuthStatus } from './auth.service';
+import { LoginTimeoutOption } from './crypto.utils';
 import { Note } from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
@@ -12,6 +13,7 @@ class MockAuthService {
   readonly storedUsername = signal('Alice');
   readonly passwordlessAvailable = signal(true);
   readonly passwordlessEnrolled = signal(false);
+  readonly loginTimeout = signal<LoginTimeoutOption>('1-hour');
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
   readonly canUsePasswordless = computed(
     () => this.passwordlessAvailable() && this.passwordlessEnrolled()
@@ -34,6 +36,15 @@ class MockAuthService {
   }
   async disablePasswordlessUnlock(): Promise<void> {
     this.passwordlessEnrolled.set(false);
+  }
+  async setLoginTimeout(timeout: LoginTimeoutOption): Promise<void> {
+    this.loginTimeout.set(timeout);
+  }
+  readonly recordActivity = jasmine.createSpy('recordActivity');
+  lockForUnfocus(): void {
+    if (this.loginTimeout() === 'application-unfocus') {
+      this.status.set('locked');
+    }
   }
   logout(): void {
     this.status.set('locked');
@@ -127,5 +138,15 @@ describe('App', () => {
     expect(fixture.nativeElement.textContent).toContain('New Note');
     expect(fixture.nativeElement.textContent).toContain('Settings');
     expect(fixture.nativeElement.textContent).toContain('Existing note');
+  });
+
+  it('records user activity on keyboard interaction while unlocked', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A' }));
+
+    expect(mockAuth.recordActivity).toHaveBeenCalled();
   });
 });

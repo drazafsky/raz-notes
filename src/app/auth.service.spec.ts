@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { AuthService } from './auth.service';
+import { AuthService, DEFAULT_LOGIN_TIMEOUT } from './auth.service';
 import { AuthRecord } from './crypto.utils';
 import { StorageService } from './storage.service';
 
@@ -32,6 +32,7 @@ describe('AuthService', () => {
   let originalGetClientCapabilities: (() => Promise<Record<string, boolean | undefined>>) | undefined;
 
   beforeEach(() => {
+    localStorage.clear();
     storage = jasmine.createSpyObj<StorageService>('StorageService', [
       'init',
       'readAuthRecord',
@@ -72,6 +73,7 @@ describe('AuthService', () => {
   });
 
   afterEach(() => {
+    localStorage.clear();
     Object.defineProperty(PublicKeyCredential, 'getClientCapabilities', {
       configurable: true,
       value: originalGetClientCapabilities
@@ -92,6 +94,9 @@ describe('AuthService', () => {
     expect(service.status()).toBe('unlocked');
     expect(service.storedUsername()).toBe('Alice');
     expect(storage.setVaultKey).toHaveBeenCalled();
+    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout).toBe(
+      DEFAULT_LOGIN_TIMEOUT
+    );
   });
 
   it('logs in with the original password after locking', async () => {
@@ -145,6 +150,7 @@ describe('AuthService', () => {
 
   it('loads a stored account and starts locked with passwordless state', async () => {
     await service.createAccount('Alice', 'password123');
+    localStorage.clear();
     const saved = storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord;
     storage.readAuthRecord.and.returnValue(
       Promise.resolve({
@@ -164,5 +170,84 @@ describe('AuthService', () => {
 
     expect(service.status()).toBe('locked');
     expect(service.passwordlessEnrolled()).toBeTrue();
+  });
+
+  it('restores an unlocked session on init when the persisted session is still valid', async () => {
+    await service.createAccount('Alice', 'password123');
+    const saved = storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord;
+    storage.readAuthRecord.and.returnValue(Promise.resolve(saved));
+    storage.setVaultKey.calls.reset();
+
+    const restoredService = new AuthService(storage);
+    await restoredService.init();
+
+    expect(restoredService.status()).toBe('unlocked');
+    expect(storage.setVaultKey).toHaveBeenCalled();
+  });
+
+  it('locks on init when the persisted session has expired', async () => {
+    await service.createAccount('Alice', 'password123');
+    const saved = storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord;
+    storage.readAuthRecord.and.returnValue(Promise.resolve(saved));
+
+    const sessionText = localStorage.getItem('raz-notes.session');
+    expect(sessionText).not.toBeNull();
+    localStorage.setItem(
+      'raz-notes.session',
+      JSON.stringify({
+        ...JSON.parse(sessionText as string),
+        lastActivityAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        unlockedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      })
+    );
+
+    const restoredService = new AuthService(storage);
+    await restoredService.init();
+
+    expect(restoredService.status()).toBe('locked');
+    expect(localStorage.getItem('raz-notes.session')).toBeNull();
+  });
+
+  it('persists the selected login timeout', async () => {
+    await service.createAccount('Alice', 'password123');
+
+    await service.setLoginTimeout('never');
+
+    expect(service.loginTimeout()).toBe('never');
+    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).loginSettings?.timeout).toBe(
+      'never'
+    );
+  });
+
+  it('locks immediately on unfocus when that login timeout is configured', async () => {
+    await service.createAccount('Alice', 'password123');
+    await service.setLoginTimeout('application-unfocus');
+
+    service.lockForUnfocus();
+
+    expect(service.status()).toBe('locked');
+    expect(localStorage.getItem('raz-notes.session')).toBeNull();
+  });
+
+  it('refreshes the persisted session activity timestamp when the user interacts', async () => {
+    await service.createAccount('Alice', 'password123');
+    await service.setLoginTimeout('30-minutes');
+
+    const sessionText = localStorage.getItem('raz-notes.session');
+    expect(sessionText).not.toBeNull();
+    localStorage.setItem(
+      'raz-notes.session',
+      JSON.stringify({
+        ...JSON.parse(sessionText as string),
+        lastActivityAt: '2026-04-19T00:00:00.000Z'
+      })
+    );
+
+    service.recordActivity();
+
+    const refreshedSession = JSON.parse(localStorage.getItem('raz-notes.session') as string) as {
+      lastActivityAt: string;
+    };
+    expect(refreshedSession.lastActivityAt).not.toBe('2026-04-19T00:00:00.000Z');
   });
 });

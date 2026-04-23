@@ -1,5 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { AuthService } from './auth.service';
 import { Note, NoteKind, StorageService } from './storage.service';
 
 export interface NoteInput {
@@ -18,6 +19,8 @@ export class NotesStateService {
   readonly notesByTitle = computed(() =>
     [...this.notes()].sort((left, right) => left.title.localeCompare(right.title))
   );
+
+  private readonly auth = inject(AuthService);
 
   constructor(private readonly storage: StorageService) {}
 
@@ -60,6 +63,7 @@ export class NotesStateService {
       await this.storage.writeAttachment(note.id, note.attachments[i], files[i]);
     }
 
+    this.auth.recordActivity();
     return note;
   }
 
@@ -80,6 +84,7 @@ export class NotesStateService {
     const updatedNotes = this.notes().map((note) => (note.id === noteId ? updatedNote : note));
     this.notes.set(updatedNotes);
     await this.storage.saveNotes(updatedNotes);
+    this.auth.recordActivity();
     return updatedNote;
   }
 
@@ -88,6 +93,7 @@ export class NotesStateService {
     const updatedNotes = this.notes().filter((note) => note.id !== noteId);
     this.notes.set(updatedNotes);
     await this.storage.saveNotes(updatedNotes);
+    this.auth.recordActivity();
   }
 
   private requireNote(noteId: number): Note {
