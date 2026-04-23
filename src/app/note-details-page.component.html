@@ -1,6 +1,32 @@
 <section
   class="flex min-h-[calc(100vh-9rem)] flex-col rounded-lg border border-theme-border bg-theme-surface p-3 shadow-sm shadow-theme-brand/10 lg:p-4"
 >
+  @if (saveNotification; as notification) {
+    <div
+      data-save-notification="true"
+      class="mb-3 flex items-start gap-3 rounded border px-3 py-2 text-sm"
+      [attr.role]="notification.type === 'error' ? 'alert' : 'status'"
+      [class.border-emerald-300]="notification.type === 'success'"
+      [class.bg-emerald-50]="notification.type === 'success'"
+      [class.text-emerald-800]="notification.type === 'success'"
+      [class.border-theme-accent-border]="notification.type === 'error'"
+      [class.bg-theme-accent-soft]="notification.type === 'error'"
+      [class.text-theme-accent]="notification.type === 'error'"
+    >
+      <p class="flex-1">{{ notification.message }}</p>
+      @if (notification.dismissable) {
+        <button
+          type="button"
+          aria-label="Dismiss save notification"
+          class="rounded border border-current px-2 py-0.5 text-xs font-medium"
+          (click)="dismissSaveNotification()"
+        >
+          Dismiss
+        </button>
+      }
+    </div>
+  }
+
   @if (noteError) {
     <p
       class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"

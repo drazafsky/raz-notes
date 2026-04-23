@@ -7,6 +7,7 @@ import { NotesStateService } from './notes-state.service';
 import { Note, StorageService } from './storage.service';
 
 class MockNotesStateService {
+  updateError: Error | null = null;
   note: Note = {
     id: 7,
     title: 'Existing note',
@@ -22,11 +23,17 @@ class MockNotesStateService {
 
   updateNote = jasmine
     .createSpy('updateNote')
-    .and.callFake(async (_noteId: number, input: { title: string }) => ({
-      ...this.note,
-      title: input.title,
-      lastModifiedAt: '2026-04-19T02:00:00.000Z',
-    }));
+    .and.callFake(async (_noteId: number, input: { title: string }) => {
+      if (this.updateError) {
+        throw this.updateError;
+      }
+
+      return {
+        ...this.note,
+        title: input.title,
+        lastModifiedAt: '2026-04-19T02:00:00.000Z',
+      };
+    });
 
   createNote = jasmine.createSpy('createNote');
   deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
@@ -111,6 +118,49 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(notesState.deleteAttachment).toHaveBeenCalledWith(7, 'a1');
     expect(fixture.componentInstance.note?.attachments).toEqual([]);
+  });
+
+  it('shows a temporary notification after a successful save', async () => {
+    jasmine.clock().install();
+    try {
+      const fixture = await createComponent();
+
+      await fixture.componentInstance.saveNote();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Note saved.');
+      expect(
+        fixture.nativeElement.querySelector('button[aria-label="Dismiss save notification"]'),
+      ).toBeNull();
+
+      jasmine.clock().tick(3000);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('Note saved.');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('shows a dismissable persistent notification when saving fails', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.updateError = new Error('Failed to save note.');
+    const fixture = await createComponent(notesState);
+
+    await fixture.componentInstance.saveNote();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Failed to save note.');
+
+    const dismissButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Dismiss save notification"]',
+    ) as HTMLButtonElement;
+    expect(dismissButton).toBeTruthy();
+
+    dismissButton.click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Failed to save note.');
   });
 
   it('clicks a text element into edit mode when the selection tool is active', async () => {

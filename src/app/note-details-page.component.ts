@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   HostListener,
+  OnDestroy,
   ViewChild,
   inject,
 } from '@angular/core';
@@ -29,6 +30,11 @@ type CanvasTool = 'selection' | 'text';
 interface FontOption {
   label: string;
   value: string;
+}
+interface SaveNotification {
+  type: 'success' | 'error';
+  message: string;
+  dismissable: boolean;
 }
 type QueryLocalFontsWindow = Window & {
   queryLocalFonts?: () => Promise<{ family: string }[]>;
@@ -70,13 +76,14 @@ const COLOR_USAGE_STORAGE_KEY = 'raz-notes.text-color-usage';
 const MIN_CANVAS_SCALE = 0.25;
 const MAX_CANVAS_SCALE = 6;
 const FIT_CONTENT_PADDING = 72;
+const SAVE_NOTIFICATION_DURATION_MS = 3000;
 
 @Component({
   selector: 'app-note-details-page',
   imports: [FormsModule, DatePipe, RouterLink, AttachmentViewerComponent],
   templateUrl: './note-details-page.component.html',
 })
-export class NoteDetailsPageComponent implements AfterViewInit {
+export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly route = inject(ActivatedRoute);
@@ -85,6 +92,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   note: Note | null = null;
   noteError = '';
+  saveNotification: SaveNotification | null = null;
   isNewNote = false;
   noteTitle = '';
   elements: NoteTextElement[] = [];
@@ -119,6 +127,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   private elementStart = { x: 0, y: 0, width: DEFAULT_TEXT_ELEMENT_WIDTH, height: 0 };
   private editorSelectionRange: Range | null = null;
   private readonly colorUsage = new Map<string, number>();
+  private saveNotificationTimeoutId: number | null = null;
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -141,6 +150,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.elements = note.elements.map((element) => ({ ...element }));
     this.selectedElementId = this.elements[0]?.id ?? null;
     this.initializeColorUsage();
+    this.showPendingNavigationSaveSuccess();
   }
 
   ngAfterViewInit(): void {
@@ -151,6 +161,10 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     void this.loadFontFamilyOptions();
   }
 
+  ngOnDestroy(): void {
+    this.clearSaveNotificationTimeout();
+  }
+
   onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.pendingFiles = input.files ? Array.from(input.files) : [];
@@ -158,37 +172,49 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   async saveNote(): Promise<void> {
     this.noteError = '';
+    this.dismissSaveNotification();
     const title = this.noteTitle.trim();
     if (!title) {
-      this.noteError = 'Title is required.';
+      this.showSaveError('Title is required.');
       return;
     }
     if (this.elements.length === 0) {
-      this.noteError = 'Add at least one text item to the note.';
+      this.showSaveError('Add at least one text item to the note.');
       return;
     }
 
     if (this.isNewNote) {
-      const created = await this.notesState.createNote(
-        {
-          title,
-          elements: this.elements,
-        },
-        this.pendingFiles,
-      );
-      void this.router.navigate(['/notes', created.id]);
+      try {
+        const created = await this.notesState.createNote(
+          {
+            title,
+            elements: this.elements,
+          },
+          this.pendingFiles,
+        );
+        void this.router.navigate(['/notes', created.id], {
+          state: { saveSuccessMessage: 'Note saved.' },
+        });
+      } catch (error) {
+        this.showSaveError(error instanceof Error ? error.message : 'Something went wrong.');
+      }
       return;
     }
 
     if (!this.note) {
-      this.noteError = 'Note not found.';
+      this.showSaveError('Note not found.');
       return;
     }
 
-    this.note = await this.notesState.updateNote(this.note.id, {
-      title,
-      elements: this.elements,
-    });
+    try {
+      this.note = await this.notesState.updateNote(this.note.id, {
+        title,
+        elements: this.elements,
+      });
+      this.showSaveSuccess('Note saved.');
+    } catch (error) {
+      this.showSaveError(error instanceof Error ? error.message : 'Something went wrong.');
+    }
   }
 
   async deleteNote(): Promise<void> {
@@ -445,6 +471,11 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   selectedElement(): NoteTextElement | null {
     return this.selectedElementId ? (this.getElement(this.selectedElementId) ?? null) : null;
+  }
+
+  dismissSaveNotification(): void {
+    this.saveNotification = null;
+    this.clearSaveNotificationTimeout();
   }
 
   setActiveTool(tool: CanvasTool): void {
@@ -940,6 +971,45 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
   private getSvgHostRect(): DOMRect | null {
     return this.svgHostRef?.nativeElement.getBoundingClientRect() ?? null;
+  }
+
+  private showPendingNavigationSaveSuccess(): void {
+    const message = this.router.getCurrentNavigation()?.extras.state?.['saveSuccessMessage'];
+    if (typeof message === 'string' && message) {
+      this.showSaveSuccess(message);
+    }
+  }
+
+  private showSaveSuccess(message: string): void {
+    this.clearSaveNotificationTimeout();
+    this.saveNotification = {
+      type: 'success',
+      message,
+      dismissable: false,
+    };
+    this.saveNotificationTimeoutId = window.setTimeout(() => {
+      this.saveNotification = null;
+      this.saveNotificationTimeoutId = null;
+      this.changeDetectorRef.detectChanges();
+    }, SAVE_NOTIFICATION_DURATION_MS);
+  }
+
+  private showSaveError(message: string): void {
+    this.clearSaveNotificationTimeout();
+    this.saveNotification = {
+      type: 'error',
+      message,
+      dismissable: true,
+    };
+  }
+
+  private clearSaveNotificationTimeout(): void {
+    if (this.saveNotificationTimeoutId === null) {
+      return;
+    }
+
+    window.clearTimeout(this.saveNotificationTimeoutId);
+    this.saveNotificationTimeoutId = null;
   }
 
   private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {

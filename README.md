@@ -13,7 +13,7 @@ Raz Notes is an offline-first note app for creating SVG-based notes with local-o
 - **Notes list previews** that render each note’s SVG content directly in the list
 - **Responsive shell and theming** with automatic light/dark mode based on the browser preference
 - **Configurable login timeout** including never-lock and application-unfocus locking modes
-- **PWA/offline shell support** via the Angular service worker
+- **PWA/offline shell support** via the Angular service worker after the app has been loaded online once and cached locally
 
 ## Local development
 
