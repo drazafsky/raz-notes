@@ -1,14 +1,14 @@
-<section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+<section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
   <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
-      <p class="text-xs uppercase tracking-wide text-gray-500">
+      <p class="text-xs uppercase tracking-wide text-theme-muted">
         @if (isNewNote) {
           New note
         } @else {
           Note details
         }
       </p>
-      <h2 class="text-xl font-semibold text-gray-800">
+      <h2 class="text-xl font-semibold text-theme-text">
         @if (isNewNote) {
           Create note
         } @else {
@@ -16,7 +16,7 @@
         }
       </h2>
       @if (note) {
-        <p class="mt-1 text-sm text-gray-500">
+        <p class="mt-1 text-sm text-theme-muted">
           Created {{ note.createdAt | date: 'short' }} · Last modified {{ note.lastModifiedAt | date: 'short' }}
         </p>
       }
@@ -25,7 +25,7 @@
     <div class="flex flex-wrap gap-2">
       <a
         routerLink="/notes"
-        class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        class="rounded border border-theme-border px-3 py-1.5 text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
       >
         Back to notes
       </a>
@@ -33,7 +33,7 @@
         <button
           type="button"
           (click)="deleteNote()"
-          class="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400"
+          class="rounded border border-theme-accent-border px-3 py-1.5 text-sm text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
         >
           Delete note
         </button>
@@ -42,17 +42,17 @@
   </div>
 
   @if (noteError) {
-    <p class="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ noteError }}</p>
+    <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ noteError }}</p>
   }
 
   <form (ngSubmit)="saveNote()" class="flex flex-col gap-3">
     <div class="flex flex-col gap-1">
-      <label for="kind" class="text-sm font-medium text-gray-700">Type</label>
+      <label for="kind" class="text-sm font-medium text-theme-text">Type</label>
       <select
         id="kind"
         name="kind"
         [(ngModel)]="noteKind"
-        class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
       >
         <option value="text">Plain text</option>
         <option value="todo">Todo list</option>
@@ -60,68 +60,68 @@
     </div>
 
     <div class="flex flex-col gap-1">
-      <label for="title" class="text-sm font-medium text-gray-700">Title</label>
+      <label for="title" class="text-sm font-medium text-theme-text">Title</label>
       <input
         id="title"
         name="title"
         [(ngModel)]="noteTitle"
-        class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
       />
     </div>
 
     @if (noteKind === 'text') {
       <div class="flex flex-col gap-1">
-        <label for="text" class="text-sm font-medium text-gray-700">Text</label>
+        <label for="text" class="text-sm font-medium text-theme-text">Text</label>
         <textarea
           id="text"
           name="text"
           rows="6"
           [(ngModel)]="noteText"
-          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
         ></textarea>
       </div>
     } @else {
       <div class="flex flex-col gap-1">
-        <label for="todo" class="text-sm font-medium text-gray-700">Todo items (one per line)</label>
+        <label for="todo" class="text-sm font-medium text-theme-text">Todo items (one per line)</label>
         <textarea
           id="todo"
           name="todo"
           rows="6"
           [(ngModel)]="todoText"
-          class="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="rounded border border-theme-border bg-theme-bg px-3 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
         ></textarea>
       </div>
     }
 
     @if (isNewNote) {
       <div class="flex flex-col gap-1">
-        <label for="attachments" class="text-sm font-medium text-gray-700">Attachments (optional)</label>
+        <label for="attachments" class="text-sm font-medium text-theme-text">Attachments (optional)</label>
         <input
           #fileInput
           id="attachments"
           type="file"
           multiple
           (change)="onFileChange($event)"
-          class="text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+          class="text-sm text-theme-muted file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-theme-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-theme-text hover:file:bg-theme-border"
         />
       </div>
 
       @if (pendingFiles.length > 0) {
         <div class="flex flex-wrap gap-2">
           @for (file of pendingFiles; track file.name) {
-            <span class="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
+            <span class="rounded-full bg-theme-brand-soft px-3 py-1 text-xs text-theme-text">
               {{ file.name }} ({{ formatFileSize(file.size) }})
             </span>
           }
         </div>
       }
     } @else if (note && note.attachments.length > 0) {
-      <div class="border-t border-gray-100 pt-3">
-        <p class="mb-2 text-sm font-medium text-gray-700">Attachments</p>
+      <div class="border-t border-theme-border pt-3">
+        <p class="mb-2 text-sm font-medium text-theme-text">Attachments</p>
         <div class="flex flex-col gap-3">
           @for (attachment of note.attachments; track attachment.id) {
             <div>
-              <div class="mb-1 text-xs text-gray-500">
+              <div class="mb-1 text-xs text-theme-muted">
                 {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
               </div>
               <app-attachment-viewer [noteId]="note.id" [attachment]="attachment" />
@@ -133,7 +133,7 @@
 
     <button
       type="submit"
-      class="w-fit rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+      class="w-fit rounded bg-theme-accent px-4 py-2 text-sm font-medium text-theme-on-accent hover:bg-theme-accent/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
     >
       @if (isNewNote) {
         Create note
