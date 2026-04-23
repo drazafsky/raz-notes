@@ -507,6 +507,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     ) {
       if (this.isTextElementById(this.activeElementId)) {
         this.startEditingElement(this.activeElementId);
+      } else {
+        const checklistElement = this.getChecklistElement(this.activeElementId);
+        const itemId =
+          checklistElement &&
+          this.selectedChecklistItemId &&
+          this.findChecklistItemLocation(checklistElement.id, this.selectedChecklistItemId)
+            ? this.selectedChecklistItemId
+            : (checklistElement?.items[0]?.id ?? null);
+        this.startEditingChecklistItem(this.activeElementId, itemId, 'end', true);
       }
     }
 
@@ -1244,11 +1253,43 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.applyChecklistItemEditorCommand(elementId, itemId, command);
   }
 
-  onChecklistItemPointerDown(event: PointerEvent, elementId: string, itemId: string): void {
+  onChecklistContainerPointerDown(event: PointerEvent, elementId: string): void {
     event.stopPropagation();
-    this.selectedElementId = elementId;
-    this.selectedChecklistItemId = itemId;
-    this.startEditingChecklistItem(elementId, itemId);
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    this.onTextPointerDown(event, elementId);
+  }
+
+  onChecklistContainerPointerUp(event: PointerEvent, elementId: string): void {
+    event.stopPropagation();
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    if (
+      target.closest(
+        'button, input, select, textarea, [contenteditable="true"], [data-checklist-item-toolbar="true"], [data-checklist-toolbar="true"]',
+      )
+    ) {
+      return;
+    }
+
+    const row = target.closest<HTMLElement>('[data-checklist-item-id]');
+    const itemId = row?.dataset['checklistItemId'];
+    if (!itemId) {
+      return;
+    }
+
+    this.activateChecklistItemEditing(elementId, itemId);
+  }
+
+  onChecklistItemActivationKeyDown(event: Event, elementId: string, itemId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.activateChecklistItemEditing(elementId, itemId);
   }
 
   onChecklistItemInput(elementId: string, itemId: string, event: Event): void {
@@ -1445,6 +1486,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     elementId: string,
     itemId: string | null,
     selection: 'all' | 'end' = 'end',
+    delayRender = false,
   ): void {
     if (!itemId || !this.findChecklistItemLocation(elementId, itemId)) {
       return;
@@ -1455,25 +1497,45 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.editingElementId = null;
     this.editingChecklistItemId = itemId;
     this.pendingEditorSelection = selection;
-    queueMicrotask(() => {
-      this.changeDetectorRef.detectChanges();
-      const editor = this.getChecklistEditorElement(elementId, itemId);
-      if (editor) {
-        const item = this.findChecklistItemLocation(elementId, itemId)?.item;
-        editor.innerHTML = item ? this.checklistItemHtml(item) : '';
-        const focusEditor = () => {
-          editor.focus();
-          this.applyPendingEditorSelection(editor);
-        };
-
-        focusEditor();
-        setTimeout(() => {
-          if (this.editingChecklistItemId === itemId) {
-            focusEditor();
-          }
-        });
+    const renderEditor = () => {
+      if (this.editingChecklistItemId !== itemId) {
+        return;
       }
-    });
+
+      this.changeDetectorRef.detectChanges();
+
+      const editor = this.getChecklistEditorElement(elementId, itemId);
+      if (!editor) {
+        return;
+      }
+
+      const item = this.findChecklistItemLocation(elementId, itemId)?.item;
+      editor.innerHTML = item ? this.checklistItemHtml(item) : '';
+      const focusEditor = () => {
+        editor.focus();
+        this.applyPendingEditorSelection(editor);
+      };
+
+      focusEditor();
+      setTimeout(() => {
+        if (this.editingChecklistItemId === itemId) {
+          focusEditor();
+        }
+      });
+    };
+
+    if (delayRender) {
+      setTimeout(renderEditor);
+      return;
+    }
+
+    queueMicrotask(renderEditor);
+  }
+
+  private activateChecklistItemEditing(elementId: string, itemId: string): void {
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.startEditingChecklistItem(elementId, itemId, 'end', true);
   }
 
   private updateChecklistItemText(elementId: string, itemId: string, richTextHtml: string): void {

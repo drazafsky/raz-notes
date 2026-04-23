@@ -220,6 +220,117 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.querySelector('#text-editor-t1')).toBeTruthy();
   });
 
+  it('clicking a rendered checklist item enters edit mode through DOM events', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        {
+          id: 'c1',
+          type: 'checklist',
+          x: 0,
+          y: 0,
+          width: 240,
+          items: [
+            {
+              id: 'i1',
+              text: 'Checklist item',
+              state: 'unchecked',
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    const checklistItem = fixture.nativeElement.querySelector(
+      'foreignObject div.min-h-8.whitespace-pre-wrap',
+    ) as HTMLDivElement;
+
+    checklistItem.dispatchEvent(
+      new PointerEvent('pointerup', {
+        bubbles: true,
+      }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.selectedElementId).toBe('c1');
+    expect(fixture.componentInstance.editingChecklistItemId).toBe('i1');
+    expect(fixture.nativeElement.querySelector('#checklist-editor-c1-i1')).toBeTruthy();
+  });
+
+  it('clicking a checklist element with the selection tool opens its active item editor', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        {
+          id: 'c1',
+          type: 'checklist',
+          x: 0,
+          y: 0,
+          width: 240,
+          items: [
+            {
+              id: 'i1',
+              text: 'Checklist item',
+              state: 'unchecked',
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    fixture.componentInstance.scale = 1;
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      'c1',
+    );
+    fixture.componentInstance.onDocumentPointerUp({} as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.selectedElementId).toBe('c1');
+    expect(fixture.componentInstance.editingChecklistItemId).toBe('i1');
+    expect(fixture.nativeElement.querySelector('#checklist-editor-c1-i1')).toBeTruthy();
+  });
+
+  it('limits checklist selection overlay hit testing to the border stroke', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        {
+          id: 'c1',
+          type: 'checklist',
+          x: 0,
+          y: 0,
+          width: 240,
+          items: [
+            {
+              id: 'i1',
+              text: 'Checklist item',
+              state: 'unchecked',
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    const selectionRect = fixture.nativeElement.querySelector('svg g g rect') as SVGRectElement;
+
+    expect(selectionRect.getAttribute('pointer-events')).toBe('visibleStroke');
+  });
+
   it('shows alignment guides only while shift-dragging an element', async () => {
     const notesState = new MockNotesStateService();
     notesState.note = {

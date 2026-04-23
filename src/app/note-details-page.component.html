@@ -422,6 +422,7 @@
                   [attr.y]="elementContentTop(element) - 10"
                   [attr.width]="element.width + 24"
                   [attr.height]="estimateElementHeight(element) + 20"
+                  [attr.pointer-events]="isChecklistElement(element) ? 'visibleStroke' : 'all'"
                   rx="12"
                   fill="transparent"
                   stroke="rgb(var(--theme-accent) / 0.7)"
@@ -488,11 +489,13 @@
                       xmlns="http://www.w3.org/1999/xhtml"
                       [id]="checklistContainerId(element.id)"
                       class="h-full w-full rounded border border-transparent bg-transparent px-3 py-2 text-sm text-theme-text"
-                      (pointerdown)="$event.stopPropagation()"
+                      (pointerdown)="onChecklistContainerPointerDown($event, element.id)"
+                      (pointerup)="onChecklistContainerPointerUp($event, element.id)"
                     >
                       <div class="flex flex-col gap-1">
                         @for (row of checklistRowsFor(element); track row.item.id) {
                           <div
+                            [attr.data-checklist-item-id]="row.item.id"
                             class="rounded-md border px-2 py-1"
                             [style.marginLeft.px]="row.depth * checklistIndentPx"
                             [class.border-theme-accent]="
@@ -730,9 +733,22 @@
                                   <div
                                     xmlns="http://www.w3.org/1999/xhtml"
                                     class="min-h-8 whitespace-pre-wrap break-words rounded px-2 py-1"
+                                    role="button"
+                                    tabindex="0"
                                     [class.line-through]="row.item.state === 'checked'"
-                                    (pointerdown)="
-                                      onChecklistItemPointerDown($event, element.id, row.item.id)
+                                    (keydown.enter)="
+                                      onChecklistItemActivationKeyDown(
+                                        $event,
+                                        element.id,
+                                        row.item.id
+                                      )
+                                    "
+                                    (keydown.space)="
+                                      onChecklistItemActivationKeyDown(
+                                        $event,
+                                        element.id,
+                                        row.item.id
+                                      )
                                     "
                                     [innerHTML]="trustedChecklistItemHtml(row.item)"
                                   ></div>
