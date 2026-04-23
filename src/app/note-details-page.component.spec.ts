@@ -1472,4 +1472,24 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Selected text');
     expect(fixture.nativeElement.textContent).not.toContain('Width');
   });
+
+  it('aligns the text resize grip with the selection border bottom edge', async () => {
+    const fixture = await createComponent();
+    fixture.componentInstance.selectedElementId = 't1';
+    fixture.detectChanges();
+
+    const selectionRect = fixture.nativeElement.querySelector('svg g g rect') as SVGRectElement;
+    const resizeHandle = fixture.nativeElement.querySelector(
+      '[data-resize-handle="true"]',
+    ) as SVGGElement;
+    const transform = resizeHandle.getAttribute('transform');
+
+    expect(transform).toMatch(/^translate\(([-\d.]+) ([-\d.]+)\)$/);
+
+    const [, , handleYString] = transform!.match(/^translate\(([-\d.]+) ([-\d.]+)\)$/)!;
+    const selectionBottom =
+      Number(selectionRect.getAttribute('y')) + Number(selectionRect.getAttribute('height'));
+
+    expect(Number(handleYString)).toBeCloseTo(selectionBottom - 6, 6);
+  });
 });

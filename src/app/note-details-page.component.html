@@ -835,11 +835,12 @@
                 }
                 @if (selectedElementId === element.id && activeTool === 'selection') {
                   <g
+                    data-resize-handle="true"
                     [attr.transform]="
                       'translate(' +
                       (element.x + element.width + 12) +
                       ' ' +
-                      (element.y + estimateElementHeight(element) + 4) +
+                      (elementContentBottom(element) + 4) +
                       ')'
                     "
                     style="cursor: nwse-resize"

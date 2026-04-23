@@ -721,6 +721,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return isTextElement(element) ? element.y - this.fontSizeFor(element) : element.y;
   }
 
+  elementContentBottom(element: NoteElement): number {
+    return this.elementContentTop(element) + this.estimateElementHeight(element);
+  }
+
   attachmentForElement(element: NoteAttachmentElement): Attachment | null {
     return (
       this.pendingAttachments.find((candidate) => candidate.attachment.id === element.attachmentId)
@@ -1072,12 +1076,12 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     y = element.y,
   ): ElementCanvasBounds {
     const top = isTextElement(element) ? y - this.fontSizeFor(element) : y;
-    const height = this.estimateElementHeight(element);
+    const bottom = top + this.estimateElementHeight(element);
     return {
       left: x,
       right: x + element.width,
       top,
-      bottom: top + height,
+      bottom,
     };
   }
 
