@@ -1,13 +1,14 @@
 # Raz Notes
 
-Offline-first Angular notes application.
+Offline-first Angular notes application with local-only authentication and encrypted storage.
 
 ## Features
 
 - Create plain text notes
 - Create todo list notes (one item per line)
 - Attach any file type to a note (images, videos, audio, PDFs, and more)
-- Notes and attachments are persisted locally using the **Origin Private File System (OPFS)** — fully offline, no server required
+- Create a local account and sign in entirely offline
+- Notes and attachments are encrypted locally using a password-protected vault stored in the **Origin Private File System (OPFS)**
 - PWA/service worker setup for offline app shell support
 
 ## Development server

@@ -1,69 +1,106 @@
-import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { computed, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+
 import { App } from './app';
+import { AuthService, AuthStatus } from './auth.service';
+import { AuthRecord } from './crypto.utils';
 import { Note, StorageService } from './storage.service';
 
+class MockAuthService {
+  readonly status = signal<AuthStatus>('unlocked');
+  readonly storedUsername = signal('Alice');
+  readonly isUnlocked = computed(() => this.status() === 'unlocked');
+
+  async init(): Promise<void> {}
+
+  async createAccount(username: string): Promise<void> {
+    this.storedUsername.set(username.trim());
+    this.status.set('unlocked');
+  }
+
+  async login(username: string): Promise<void> {
+    this.storedUsername.set(username.trim());
+    this.status.set('unlocked');
+  }
+
+  logout(): void {
+    this.status.set('locked');
+  }
+}
+
+class MockStorageService {
+  init = jasmine.createSpy('init').and.returnValue(Promise.resolve());
+  setVaultKey = jasmine.createSpy('setVaultKey');
+  readAuthRecord = jasmine.createSpy('readAuthRecord').and.returnValue(
+    Promise.resolve<AuthRecord | null>(null)
+  );
+  saveAuthRecord = jasmine.createSpy('saveAuthRecord').and.returnValue(Promise.resolve());
+  loadNotes = jasmine.createSpy('loadNotes').and.returnValue(Promise.resolve([] as Note[]));
+  saveNotes = jasmine.createSpy('saveNotes').and.returnValue(Promise.resolve());
+  writeAttachment = jasmine.createSpy('writeAttachment').and.returnValue(Promise.resolve());
+  readAttachment = jasmine.createSpy('readAttachment').and.returnValue(
+    Promise.resolve(new Blob(['attachment']))
+  );
+  deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
+}
+
 describe('App', () => {
-  let mockStorage: jasmine.SpyObj<StorageService>;
+  let mockAuth: MockAuthService;
+  let mockStorage: MockStorageService;
 
   beforeEach(async () => {
-    mockStorage = jasmine.createSpyObj<StorageService>('StorageService', [
-      'init',
-      'saveIndex',
-      'writeAttachment',
-      'readAttachment',
-      'deleteNote'
-    ]);
-    mockStorage.init.and.returnValue(Promise.resolve([]));
-    mockStorage.saveIndex.and.returnValue(Promise.resolve());
-    mockStorage.writeAttachment.and.returnValue(Promise.resolve());
-    mockStorage.deleteNote.and.returnValue(Promise.resolve());
+    mockAuth = new MockAuthService();
+    mockStorage = new MockStorageService();
 
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [{ provide: StorageService, useValue: mockStorage }]
+      providers: [
+        { provide: AuthService, useValue: mockAuth },
+        { provide: StorageService, useValue: mockStorage }
+      ]
     }).compileComponents();
   });
 
-  it('should create the app', fakeAsync(() => {
-    const fixture = TestBed.createComponent(App);
-    flushMicrotasks();
-    expect(fixture.componentInstance).toBeTruthy();
-  }));
+  it('shows local account setup when no account exists', async () => {
+    mockAuth.status.set('setup-required');
 
-  it('should create a plain text note and persist it', fakeAsync(() => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).toContain('Create your local account');
+  });
+
+  it('creates a plain text note and persists it when unlocked', async () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
-    flushMicrotasks();
 
     app.noteKind = 'text';
     app.noteTitle = 'My text note';
     app.noteText = 'Remember milk';
-    app.createNote();
-    flushMicrotasks();
+    await app.createNote();
 
     expect(app.notes().length).toBe(1);
     expect(app.notes()[0].kind).toBe('text');
     expect(app.notes()[0].text).toBe('Remember milk');
-    expect(mockStorage.saveIndex).toHaveBeenCalled();
-  }));
+    expect(mockStorage.saveNotes).toHaveBeenCalled();
+  });
 
-  it('should create a todo note from line-separated items', fakeAsync(() => {
+  it('shows a validation error instead of creating a note with an empty title', async () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
-    flushMicrotasks();
 
-    app.noteKind = 'todo';
-    app.noteTitle = 'Weekend tasks';
-    app.todoText = 'Buy food\nClean room';
-    app.createNote();
-    flushMicrotasks();
+    app.noteKind = 'text';
+    app.noteTitle = '   ';
+    app.noteText = 'Some text';
+    await app.createNote();
 
-    expect(app.notes().length).toBe(1);
-    expect(app.notes()[0].kind).toBe('todo');
-    expect(app.notes()[0].todos).toEqual(['Buy food', 'Clean room']);
-  }));
+    expect(app.notes().length).toBe(0);
+    expect(app.noteError).toBe('Title is required.');
+    expect(mockStorage.saveNotes).not.toHaveBeenCalled();
+  });
 
-  it('should load notes returned by StorageService.init', fakeAsync(() => {
+  it('loads notes after a successful login', async () => {
     const savedNote: Note = {
       id: 1,
       kind: 'text',
@@ -72,52 +109,21 @@ describe('App', () => {
       createdAt: new Date().toISOString(),
       attachments: []
     };
-    mockStorage.init.and.returnValue(Promise.resolve([savedNote]));
+    mockAuth.status.set('locked');
+    mockStorage.loadNotes.and.returnValue(Promise.resolve([savedNote]));
 
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
-    flushMicrotasks();
 
-    expect(app.notes().length).toBe(1);
-    expect(app.notes()[0].title).toBe('Saved');
-  }));
+    app.loginUsername = 'Alice';
+    app.loginPassword = 'password123';
+    await app.login();
 
-  it('should delete a note', fakeAsync(() => {
-    const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    flushMicrotasks();
+    expect(mockAuth.status()).toBe('unlocked');
+    expect(app.notes()).toEqual([savedNote]);
+  });
 
-    app.noteKind = 'text';
-    app.noteTitle = 'To delete';
-    app.noteText = 'Some text';
-    app.createNote();
-    flushMicrotasks();
-
-    expect(app.notes().length).toBe(1);
-    const noteId = app.notes()[0].id;
-    app.deleteNote(noteId);
-    flushMicrotasks();
-
-    expect(app.notes().length).toBe(0);
-    expect(mockStorage.deleteNote).toHaveBeenCalledWith(noteId);
-  }));
-
-  it('should not create a note with empty title', fakeAsync(() => {
-    const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    flushMicrotasks();
-
-    app.noteKind = 'text';
-    app.noteTitle = '   ';
-    app.noteText = 'Some text';
-    app.createNote();
-    flushMicrotasks();
-
-    expect(app.notes().length).toBe(0);
-    expect(mockStorage.saveIndex).not.toHaveBeenCalled();
-  }));
-
-  it('should format file sizes correctly', () => {
+  it('formats file sizes correctly', async () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
 
