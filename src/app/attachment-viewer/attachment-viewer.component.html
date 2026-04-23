@@ -1,4 +1,4 @@
-<div class="mt-1">
+<div [class.mt-1]="!compact" [class.h-full]="compact">
   @if (loading) {
     <span class="text-xs text-theme-muted">Loading attachment…</span>
   } @else if (error) {
@@ -8,30 +8,43 @@
       <img
         [src]="safeUrl"
         [alt]="attachment.name"
-        class="max-h-64 rounded border border-theme-border object-contain"
+        class="rounded border border-theme-border object-contain"
+        [class.max-h-64]="!compact"
+        [class.h-full]="compact"
+        [class.w-full]="compact"
       />
     } @else if (category === 'video') {
       <video
         controls
         [src]="safeUrl"
-        class="max-h-64 w-full rounded border border-theme-border"
+        class="w-full rounded border border-theme-border"
+        [class.max-h-64]="!compact"
+        [class.h-full]="compact"
       ></video>
     } @else if (category === 'audio') {
       <audio controls [src]="safeUrl" class="w-full"></audio>
     } @else if (category === 'pdf') {
       <iframe
         [src]="safeResourceUrl"
-        class="h-64 w-full rounded border border-theme-border"
+        class="w-full rounded border border-theme-border"
+        [class.h-64]="!compact"
+        [class.h-full]="compact"
         [title]="attachment.name"
       ></iframe>
     } @else {
-      <a
-        [href]="safeUrl"
-        [download]="attachment.name"
-        class="inline-flex items-center gap-1 text-sm text-theme-accent underline hover:text-theme-text"
-      >
-        📎 {{ attachment.name }}
-      </a>
+      <div class="rounded border border-theme-border bg-theme-bg p-3 text-sm text-theme-text">
+        <div class="font-medium">{{ attachment.name }}</div>
+        <div class="mt-1 text-xs text-theme-muted">
+          {{ attachment.type || 'Unknown file type' }} · {{ formatFileSize(attachment.size) }}
+        </div>
+        <a
+          [href]="safeUrl"
+          [download]="attachment.name"
+          class="mt-3 inline-flex items-center gap-1 text-sm text-theme-accent underline hover:text-theme-text"
+        >
+          📎 Open or download
+        </a>
+      </div>
     }
   }
 </div>

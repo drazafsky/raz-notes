@@ -36,6 +36,15 @@
   }
 
   <form (ngSubmit)="saveNote()" class="flex min-h-full flex-1 flex-col gap-3">
+    <input
+      #fileInput
+      id="attachments"
+      type="file"
+      multiple
+      (change)="onFileChange($event)"
+      class="hidden"
+    />
+
     <div class="flex flex-wrap items-center gap-2 border-b border-theme-border pb-3">
       <a
         routerLink="/notes"
@@ -148,6 +157,15 @@
         >
           <i class="fa-solid fa-list-check" aria-hidden="true"></i>
         </button>
+        <button
+          type="button"
+          (click)="selectFilesForCanvas()"
+          aria-label="Attach files"
+          title="Attach files"
+          class="inline-flex h-10 w-10 items-center justify-center rounded border border-theme-border text-theme-text focus:outline-none focus:ring-2 focus:ring-theme-accent"
+        >
+          <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+        </button>
       </div>
 
       <div class="relative">
@@ -189,7 +207,11 @@
         <svg
           #svgHost
           class="h-[calc(100vh-18rem)] min-h-[60vh] w-full touch-none rounded border border-theme-border bg-theme-surface"
+          [class.border-theme-accent]="isCanvasDragActive"
           (pointerdown)="onCanvasPointerDown($event)"
+          (dragover)="onCanvasDragOver($event)"
+          (dragleave)="onCanvasDragLeave($event)"
+          (drop)="onCanvasDrop($event)"
           (wheel)="onCanvasWheel($event)"
         >
           <defs>
@@ -775,6 +797,41 @@
                       </div>
                     </div>
                   </foreignObject>
+                } @else if (isAttachmentElement(element)) {
+                  <foreignObject
+                    [attr.x]="element.x"
+                    [attr.y]="element.y"
+                    [attr.width]="element.width"
+                    [attr.height]="estimateElementHeight(element)"
+                  >
+                    @if (attachmentForElement(element); as attachment) {
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        class="h-full w-full rounded border border-theme-border bg-theme-surface p-2 shadow-sm shadow-theme-brand/10"
+                        (pointerdown)="onAttachmentPreviewPointerDown($event, element.id)"
+                      >
+                        <div class="mb-2 text-xs text-theme-muted">
+                          {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
+                        </div>
+                        <div class="h-[calc(100%-1.5rem)] overflow-hidden rounded">
+                          <app-attachment-viewer
+                            [noteId]="note?.id ?? null"
+                            [attachment]="attachment"
+                            [attachmentBlob]="attachmentBlobForElement(element)"
+                            [compact]="true"
+                          />
+                        </div>
+                      </div>
+                    } @else {
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        class="flex h-full w-full items-center justify-center rounded border border-theme-accent-border bg-theme-accent-soft px-3 text-sm text-theme-accent"
+                        (pointerdown)="onAttachmentPreviewPointerDown($event, element.id)"
+                      >
+                        Attachment unavailable
+                      </div>
+                    }
+                  </foreignObject>
                 }
                 @if (selectedElementId === element.id && activeTool === 'selection') {
                   <circle
@@ -793,33 +850,11 @@
       </div>
     </div>
 
-    @if (isNewNote) {
+    @if (note && unplacedAttachments().length > 0) {
       <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
-        <label for="attachments" class="text-sm font-medium text-theme-text">Attachments</label>
-        <input
-          #fileInput
-          id="attachments"
-          type="file"
-          multiple
-          (change)="onFileChange($event)"
-          class="mt-2 text-sm text-theme-muted file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-theme-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-theme-text hover:file:bg-theme-border"
-        />
-
-        @if (pendingFiles.length > 0) {
-          <div class="mt-3 flex flex-wrap gap-2">
-            @for (file of pendingFiles; track file.name) {
-              <span class="rounded-full bg-theme-brand-soft px-3 py-1 text-xs text-theme-text">
-                {{ file.name }} ({{ formatFileSize(file.size) }})
-              </span>
-            }
-          </div>
-        }
-      </div>
-    } @else if (note && note.attachments.length > 0) {
-      <div class="rounded-lg border border-theme-border bg-theme-bg p-3">
-        <p class="mb-2 text-sm font-medium text-theme-text">Attachments</p>
+        <p class="mb-2 text-sm font-medium text-theme-text">Unplaced attachments</p>
         <div class="flex flex-col gap-3">
-          @for (attachment of note.attachments; track attachment.id) {
+          @for (attachment of unplacedAttachments(); track attachment.id) {
             <div class="rounded-lg border border-theme-border bg-theme-surface p-3">
               <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div class="text-xs text-theme-muted">

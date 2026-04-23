@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 
 import { AuthService } from './auth.service';
-import { NotesStateService } from './notes-state.service';
-import { Note, NoteTextElement, StorageService } from './storage.service';
+import { NotesStateService, PendingAttachment } from './notes-state.service';
+import { Note, NoteAttachmentElement, NoteTextElement, StorageService } from './storage.service';
 
 describe('NotesStateService', () => {
   let service: NotesStateService;
@@ -86,6 +86,75 @@ describe('NotesStateService', () => {
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
     expect(auth.recordActivity).toHaveBeenCalled();
+  });
+
+  it('adds referenced pending attachments when updating a note', async () => {
+    const existing: Note = {
+      id: 4,
+      title: 'Attachment note',
+      elements: [{ id: 't1', text: 'Before', x: 0, y: 0, width: 180, fontSize: 24 }],
+      createdAt: '2026-04-19T00:00:00.000Z',
+      lastModifiedAt: '2026-04-19T00:00:00.000Z',
+      attachments: [],
+    };
+    const attachment = { id: 'a2', name: 'demo.pdf', type: 'application/pdf', size: 12 };
+    const pendingAttachment: PendingAttachment = {
+      attachment,
+      file: new File(['demo'], 'demo.pdf', { type: 'application/pdf' }),
+    };
+    service.notes.set([existing]);
+
+    const updated = await service.updateNote(
+      4,
+      {
+        title: 'Attachment note',
+        elements: [
+          {
+            id: 'att-1',
+            type: 'attachment',
+            attachmentId: 'a2',
+            x: 10,
+            y: 20,
+            width: 240,
+            height: 180,
+          } satisfies NoteAttachmentElement,
+        ],
+      },
+      [pendingAttachment],
+    );
+
+    expect(updated.attachments).toEqual([attachment]);
+    expect(storage.writeAttachment).toHaveBeenCalledWith(4, attachment, pendingAttachment.file);
+  });
+
+  it('deletes storage for removed referenced attachment elements during update', async () => {
+    const existing: Note = {
+      id: 5,
+      title: 'Attachment note',
+      elements: [
+        {
+          id: 'att-1',
+          type: 'attachment',
+          attachmentId: 'a1',
+          x: 10,
+          y: 20,
+          width: 240,
+          height: 180,
+        } satisfies NoteAttachmentElement,
+      ],
+      createdAt: '2026-04-19T00:00:00.000Z',
+      lastModifiedAt: '2026-04-19T00:00:00.000Z',
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
+    };
+    service.notes.set([existing]);
+
+    const updated = await service.updateNote(5, {
+      title: 'Attachment note',
+      elements: [{ id: 't1', text: 'Replacement', x: 0, y: 0, width: 180, fontSize: 24 }],
+    });
+
+    expect(updated.attachments).toEqual([]);
+    expect(storage.deleteAttachment).toHaveBeenCalledWith(5, 'a1');
   });
 
   it('deletes an attachment from an existing note', async () => {

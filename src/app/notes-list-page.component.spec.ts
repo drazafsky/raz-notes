@@ -32,7 +32,18 @@ class MockNotesStateService {
     {
       id: 1,
       title: 'Saved',
-      elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
+      elements: [
+        { id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 },
+        {
+          id: 'a-el-1',
+          type: 'attachment',
+          attachmentId: 'a1',
+          x: 220,
+          y: 0,
+          width: 220,
+          height: 160,
+        },
+      ],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
       attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
@@ -43,7 +54,7 @@ class MockNotesStateService {
 }
 
 describe('NotesListPageComponent', () => {
-  it('renders note metadata and attachments in the list', async () => {
+  it('renders note metadata and attachment elements without a separate attachment list', async () => {
     await TestBed.configureTestingModule({
       imports: [NotesListPageComponent],
       providers: [
@@ -66,6 +77,7 @@ describe('NotesListPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Saved');
     expect(fixture.nativeElement.textContent).toContain('Last modified');
     expect(fixture.nativeElement.textContent).toContain('file.txt');
+    expect(fixture.nativeElement.textContent).not.toContain('Attachments');
     expect(fixture.nativeElement.textContent).toContain('Delete');
   });
 

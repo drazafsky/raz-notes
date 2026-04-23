@@ -9,7 +9,11 @@ import {
   toArrayBuffer,
   utf8ToBytes,
 } from './crypto.utils';
-import { normalizeChecklistElement, normalizeNoteTextElement } from './note-svg.utils';
+import {
+  normalizeAttachmentElement,
+  normalizeChecklistElement,
+  normalizeNoteTextElement,
+} from './note-svg.utils';
 
 export interface Attachment {
   id: string;
@@ -56,7 +60,17 @@ export interface NoteChecklistElement {
   items: NoteChecklistItem[];
 }
 
-export type NoteElement = NoteTextElement | NoteChecklistElement;
+export interface NoteAttachmentElement {
+  type: 'attachment';
+  id: string;
+  attachmentId: string;
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+}
+
+export type NoteElement = NoteTextElement | NoteChecklistElement | NoteAttachmentElement;
 
 export interface Note {
   id: number;
@@ -266,6 +280,19 @@ export class StorageService {
         width: typeof element['width'] === 'number' ? (element['width'] as number) : undefined,
         height: typeof element['height'] === 'number' ? (element['height'] as number) : undefined,
         items: Array.isArray(element['items']) ? (element['items'] as unknown[]) : [],
+      });
+    }
+
+    if (element['type'] === 'attachment') {
+      return normalizeAttachmentElement({
+        type: 'attachment',
+        id: typeof element['id'] === 'string' ? (element['id'] as string) : `attachment-${index}`,
+        attachmentId:
+          typeof element['attachmentId'] === 'string' ? (element['attachmentId'] as string) : '',
+        x: typeof element['x'] === 'number' ? (element['x'] as number) : 0,
+        y: typeof element['y'] === 'number' ? (element['y'] as number) : 0,
+        width: typeof element['width'] === 'number' ? (element['width'] as number) : undefined,
+        height: typeof element['height'] === 'number' ? (element['height'] as number) : undefined,
       });
     }
 

@@ -9,6 +9,7 @@ import {
   computeNoteViewBox,
   DEFAULT_TEXT_FONT_FAMILY,
   estimateNoteElementHeight,
+  isAttachmentElement,
   isChecklistElement,
   isTextElement,
   layoutChecklistRows,
@@ -17,7 +18,9 @@ import { plainTextToRichHtml } from './rich-text.utils';
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
 import {
+  Attachment,
   Note,
+  NoteAttachmentElement,
   NoteChecklistElement,
   NoteChecklistItem,
   NoteElement,
@@ -65,12 +68,6 @@ export class NotesListPageComponent {
     }
   }
 
-  formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
   previewViewBox(note: Note): string {
     return computeNoteViewBox(note.elements);
   }
@@ -107,6 +104,10 @@ export class NotesListPageComponent {
     return isChecklistElement(element);
   }
 
+  isAttachmentElement(element: NoteElement): element is NoteAttachmentElement {
+    return isAttachmentElement(element);
+  }
+
   checklistRowsFor(element: NoteChecklistElement): ChecklistLayoutRow[] {
     return layoutChecklistRows(element);
   }
@@ -128,5 +129,9 @@ export class NotesListPageComponent {
       default:
         return '☐';
     }
+  }
+
+  attachmentForElement(note: Note, element: NoteAttachmentElement): Attachment | null {
+    return note.attachments.find((attachment) => attachment.id === element.attachmentId) ?? null;
   }
 }

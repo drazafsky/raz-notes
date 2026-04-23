@@ -15,6 +15,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
+  DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
+  DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
   CHECKLIST_INDENT_PX,
   ChecklistLayoutRow,
   computeNoteContentBounds,
@@ -23,22 +25,26 @@ import {
   DEFAULT_TEXT_FONT_FAMILY,
   DEFAULT_TEXT_FONT_SIZE,
   estimateNoteElementHeight,
+  isAttachmentElement,
   isChecklistElement,
   isTextElement,
   layoutChecklistRows,
+  normalizeAttachmentElement,
   normalizeChecklistElement,
   normalizeNoteTextElement,
 } from './note-svg.utils';
 import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
 import {
+  Attachment,
   ChecklistItemState,
   Note,
+  NoteAttachmentElement,
   NoteChecklistElement,
   NoteChecklistItem,
   NoteElement,
   NoteTextElement,
 } from './storage.service';
-import { NotesStateService } from './notes-state.service';
+import { NotesStateService, PendingAttachment } from './notes-state.service';
 
 type CanvasTool = 'selection' | 'text' | 'checklist';
 interface FontOption {
@@ -154,7 +160,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     value: family,
   }));
   quickColorOptions = [...DEFAULT_QUICK_COLORS];
-  pendingFiles: File[] = [];
+  pendingAttachments: PendingAttachment[] = [];
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
   selectedChecklistItemId: string | null = null;
@@ -168,6 +174,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   viewX = 480;
   viewY = 280;
   scale = 1;
+  isCanvasDragActive = false;
 
   @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('svgHost') svgHostRef?: ElementRef<SVGSVGElement>;
@@ -224,7 +231,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.pendingFiles = input.files ? Array.from(input.files) : [];
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length > 0) {
+      this.addAttachmentFiles(files);
+    }
+    input.value = '';
+  }
+
+  selectFilesForCanvas(): void {
+    this.fileInputRef?.nativeElement.click();
   }
 
   async saveNote(): Promise<void> {
@@ -247,7 +262,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
             title,
             elements: this.elements,
           },
-          this.pendingFiles,
+          this.pendingAttachments,
         );
         void this.router.navigate(['/notes', created.id], {
           state: { saveSuccessMessage: 'Note saved.' },
@@ -264,14 +279,48 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     try {
-      this.note = await this.notesState.updateNote(this.note.id, {
-        title,
-        elements: this.elements,
-      });
+      this.note = await this.notesState.updateNote(
+        this.note.id,
+        {
+          title,
+          elements: this.elements,
+        },
+        this.pendingAttachments,
+      );
+      this.pendingAttachments = [];
       this.showSaveSuccess('Note saved.');
     } catch (error) {
       this.showSaveError(error instanceof Error ? error.message : 'Something went wrong.');
     }
+  }
+
+  onCanvasDragOver(event: DragEvent): void {
+    if (!event.dataTransfer || event.dataTransfer.files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    this.isCanvasDragActive = true;
+  }
+
+  onCanvasDragLeave(event: DragEvent): void {
+    if (event.currentTarget !== event.target) {
+      return;
+    }
+
+    this.isCanvasDragActive = false;
+  }
+
+  onCanvasDrop(event: DragEvent): void {
+    this.isCanvasDragActive = false;
+    const files = event.dataTransfer ? Array.from(event.dataTransfer.files) : [];
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const point = this.pointerToCanvas(event);
+    this.addAttachmentFiles(files, point);
   }
 
   async deleteNote(): Promise<void> {
@@ -292,6 +341,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
     try {
       this.note = await this.notesState.deleteAttachment(this.note.id, attachmentId);
+      this.elements = this.elements.filter(
+        (element) => !isAttachmentElement(element) || element.attachmentId !== attachmentId,
+      );
+      this.syncNoteElements();
     } catch (error) {
       this.noteError = error instanceof Error ? error.message : 'Something went wrong.';
     }
@@ -451,11 +504,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
                 x: proposedX + alignment.deltaX,
                 y: proposedY + alignment.deltaY,
               })
-            : normalizeNoteTextElement({
-                ...currentElement,
-                x: proposedX + alignment.deltaX,
-                y: proposedY + alignment.deltaY,
-              }),
+            : isAttachmentElement(currentElement)
+              ? normalizeAttachmentElement({
+                  ...currentElement,
+                  x: proposedX + alignment.deltaX,
+                  y: proposedY + alignment.deltaY,
+                })
+              : normalizeNoteTextElement({
+                  ...currentElement,
+                  x: proposedX + alignment.deltaX,
+                  y: proposedY + alignment.deltaY,
+                }),
         false,
       );
       return;
@@ -471,11 +530,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
               width: Math.max(180, this.elementStart.width + dx / this.scale),
               height: Math.max(72, this.elementStart.height + dy / this.scale),
             })
-          : normalizeNoteTextElement({
-              ...currentElement,
-              width: Math.max(100, this.elementStart.width + dx / this.scale),
-              height: Math.max(48, this.elementStart.height + dy / this.scale),
-            }),
+          : isAttachmentElement(currentElement)
+            ? normalizeAttachmentElement({
+                ...currentElement,
+                width: Math.max(180, this.elementStart.width + dx / this.scale),
+                height: Math.max(120, this.elementStart.height + dy / this.scale),
+              })
+            : normalizeNoteTextElement({
+                ...currentElement,
+                width: Math.max(100, this.elementStart.width + dx / this.scale),
+                height: Math.max(48, this.elementStart.height + dy / this.scale),
+              }),
       false,
     );
     if (isChecklistElement(element)) {
@@ -641,8 +706,41 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return isChecklistElement(element);
   }
 
+  isAttachmentElement(element: NoteElement): element is NoteAttachmentElement {
+    return isAttachmentElement(element);
+  }
+
   elementContentTop(element: NoteElement): number {
     return isTextElement(element) ? element.y - this.fontSizeFor(element) : element.y;
+  }
+
+  attachmentForElement(element: NoteAttachmentElement): Attachment | null {
+    return (
+      this.pendingAttachments.find((candidate) => candidate.attachment.id === element.attachmentId)
+        ?.attachment ??
+      this.note?.attachments.find((attachment) => attachment.id === element.attachmentId) ??
+      null
+    );
+  }
+
+  attachmentBlobForElement(element: NoteAttachmentElement): Blob | null {
+    return (
+      this.pendingAttachments.find((candidate) => candidate.attachment.id === element.attachmentId)
+        ?.file ?? null
+    );
+  }
+
+  unplacedAttachments(): Attachment[] {
+    if (!this.note) {
+      return [];
+    }
+
+    const placedAttachmentIds = new Set(
+      this.elements
+        .filter((element): element is NoteAttachmentElement => isAttachmentElement(element))
+        .map((element) => element.attachmentId),
+    );
+    return this.note.attachments.filter((attachment) => !placedAttachmentIds.has(attachment.id));
   }
 
   guideExtentStart(): number {
@@ -810,6 +908,56 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.selectedElementId = element.id;
     this.selectedChecklistItemId = element.items[0]?.id ?? null;
     this.startEditingChecklistItem(element.id, element.items[0]?.id ?? null, 'all');
+  }
+
+  private addAttachmentFiles(files: File[], origin?: { x: number; y: number }): void {
+    if (files.length === 0) {
+      return;
+    }
+
+    const start = origin ?? this.defaultAttachmentInsertionPoint();
+    this.recordCanvasHistory();
+    const nextPendingAttachments = [...this.pendingAttachments];
+    const nextElements = [...this.elements];
+
+    files.forEach((file, index) => {
+      const attachment: Attachment = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      };
+      nextPendingAttachments.push({ attachment, file });
+      nextElements.push(
+        normalizeAttachmentElement({
+          id: crypto.randomUUID(),
+          type: 'attachment',
+          attachmentId: attachment.id,
+          x: start.x + index * 24,
+          y: start.y + index * 24,
+          width: DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
+          height: DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
+        }),
+      );
+    });
+
+    this.pendingAttachments = nextPendingAttachments;
+    this.elements = nextElements;
+    this.activeTool = 'selection';
+    this.selectedElementId = nextElements.at(-1)?.id ?? null;
+    this.syncNoteElements();
+  }
+
+  private defaultAttachmentInsertionPoint(): { x: number; y: number } {
+    const rect = this.getSvgHostRect();
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: (rect.width / 2 - this.viewX) / this.scale - DEFAULT_ATTACHMENT_ELEMENT_WIDTH / 2,
+      y: (rect.height / 2 - this.viewY) / this.scale - DEFAULT_ATTACHMENT_ELEMENT_HEIGHT / 2,
+    };
   }
 
   onInlineEditorPointerDown(event: PointerEvent, elementId: string): void {
@@ -1033,6 +1181,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private syncNoteElements(): void {
+    this.pruneDetachedPendingAttachments();
     this.ensureChecklistItemSelection();
     if (this.note) {
       this.note = {
@@ -1263,6 +1412,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onChecklistContainerPointerUp(event: PointerEvent, elementId: string): void {
+    if (this.interactionMode !== 'none') {
+      return;
+    }
+
     event.stopPropagation();
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -1284,6 +1437,19 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     this.activateChecklistItemEditing(elementId, itemId);
+  }
+
+  onAttachmentPreviewPointerDown(event: PointerEvent, elementId: string): void {
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest('a, button, input, select, textarea, audio, video, iframe')
+    ) {
+      event.stopPropagation();
+      return;
+    }
+
+    this.onTextPointerDown(event, elementId);
   }
 
   onChecklistItemActivationKeyDown(event: Event, elementId: string, itemId: string): void {
@@ -1893,12 +2059,29 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private cloneElement(element: NoteElement): NoteElement {
-    return isChecklistElement(element)
-      ? normalizeChecklistElement({
-          ...element,
-          items: this.cloneChecklistItems(element.items),
-        })
-      : normalizeNoteTextElement({ ...element });
+    if (isChecklistElement(element)) {
+      return normalizeChecklistElement({
+        ...element,
+        items: this.cloneChecklistItems(element.items),
+      });
+    }
+
+    if (isAttachmentElement(element)) {
+      return normalizeAttachmentElement({ ...element });
+    }
+
+    return normalizeNoteTextElement({ ...element });
+  }
+
+  private pruneDetachedPendingAttachments(): void {
+    const referencedAttachmentIds = new Set(
+      this.elements
+        .filter((element): element is NoteAttachmentElement => isAttachmentElement(element))
+        .map((element) => element.attachmentId),
+    );
+    this.pendingAttachments = this.pendingAttachments.filter(({ attachment }) =>
+      referencedAttachmentIds.has(attachment.id),
+    );
   }
 
   private cloneChecklistItems(items: NoteChecklistItem[]): NoteChecklistItem[] {
@@ -2269,7 +2452,12 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.saveNotificationTimeoutId = null;
   }
 
-  private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {
+  private pointerToCanvas(
+    event:
+      | Pick<PointerEvent, 'clientX' | 'clientY'>
+      | Pick<WheelEvent, 'clientX' | 'clientY'>
+      | Pick<DragEvent, 'clientX' | 'clientY'>,
+  ): { x: number; y: number } {
     const rect = this.getSvgHostRect();
     if (!rect) {
       return { x: 0, y: 0 };

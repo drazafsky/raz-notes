@@ -1,4 +1,5 @@
 import type {
+  NoteAttachmentElement,
   NoteChecklistElement,
   NoteChecklistItem,
   NoteElement,
@@ -11,6 +12,8 @@ export const DEFAULT_TEXT_FONT_SIZE = 24;
 export const DEFAULT_TEXT_ELEMENT_WIDTH = 180;
 export const DEFAULT_TEXT_FONT_FAMILY = 'Inter, ui-sans-serif, system-ui, sans-serif';
 export const DEFAULT_CHECKLIST_ELEMENT_WIDTH = 280;
+export const DEFAULT_ATTACHMENT_ELEMENT_WIDTH = 280;
+export const DEFAULT_ATTACHMENT_ELEMENT_HEIGHT = 180;
 export const CHECKLIST_INDENT_PX = 24;
 export const CHECKLIST_ROW_BASE_HEIGHT = 32;
 export const CHECKLIST_DUE_DATE_HEIGHT = 24;
@@ -147,6 +150,30 @@ export function normalizeChecklistElement(
   };
 }
 
+export function normalizeAttachmentElement(
+  element: Pick<NoteAttachmentElement, 'id' | 'attachmentId' | 'x' | 'y' | 'type'> &
+    Partial<Pick<NoteAttachmentElement, 'width' | 'height'>>,
+): NoteAttachmentElement {
+  const width =
+    typeof element.width === 'number'
+      ? Math.max(180, element.width)
+      : DEFAULT_ATTACHMENT_ELEMENT_WIDTH;
+  const height =
+    typeof element.height === 'number'
+      ? Math.max(120, element.height)
+      : DEFAULT_ATTACHMENT_ELEMENT_HEIGHT;
+
+  return {
+    type: 'attachment',
+    id: element.id,
+    attachmentId: element.attachmentId,
+    x: element.x,
+    y: element.y,
+    width,
+    height,
+  };
+}
+
 export function createChecklistItem(text = ''): NoteChecklistItem {
   return {
     id: crypto.randomUUID(),
@@ -257,17 +284,27 @@ export function checklistItemPlainText(item: NoteChecklistItem): string {
 }
 
 export function isTextElement(element: NoteElement): element is NoteTextElement {
-  return element.type !== 'checklist';
+  return element.type !== 'checklist' && element.type !== 'attachment';
 }
 
 export function isChecklistElement(element: NoteElement): element is NoteChecklistElement {
   return element.type === 'checklist';
 }
 
+export function isAttachmentElement(element: NoteElement): element is NoteAttachmentElement {
+  return element.type === 'attachment';
+}
+
 export function estimateNoteElementHeight(element: NoteElement): number {
-  return isChecklistElement(element)
-    ? estimateChecklistElementHeight(element)
-    : estimateTextElementHeight(element);
+  if (isChecklistElement(element)) {
+    return estimateChecklistElementHeight(element);
+  }
+
+  if (isAttachmentElement(element)) {
+    return element.height ?? DEFAULT_ATTACHMENT_ELEMENT_HEIGHT;
+  }
+
+  return estimateTextElementHeight(element);
 }
 
 export function computeNoteViewBox(elements: NoteElement[]): string {

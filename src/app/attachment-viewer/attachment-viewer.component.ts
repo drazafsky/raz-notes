@@ -10,8 +10,10 @@ type AttachmentCategory = 'image' | 'video' | 'audio' | 'pdf' | 'other';
   templateUrl: './attachment-viewer.component.html',
 })
 export class AttachmentViewerComponent implements OnInit, OnDestroy {
-  @Input({ required: true }) noteId!: number;
+  @Input() noteId: number | null = null;
   @Input({ required: true }) attachment!: Attachment;
+  @Input() attachmentBlob: Blob | null = null;
+  @Input() compact = false;
 
   private storage = inject(StorageService);
   private sanitizer = inject(DomSanitizer);
@@ -26,11 +28,18 @@ export class AttachmentViewerComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     try {
-      const blob = await this.storage.readAttachment(
-        this.noteId,
-        this.attachment.id,
-        this.attachment.type,
-      );
+      const blob =
+        this.attachmentBlob ??
+        (this.noteId === null
+          ? null
+          : await this.storage.readAttachment(
+              this.noteId,
+              this.attachment.id,
+              this.attachment.type,
+            ));
+      if (!blob) {
+        throw new Error('Attachment preview is unavailable.');
+      }
       this.objectUrl = URL.createObjectURL(blob);
       this.safeUrl = this.sanitizer.bypassSecurityTrustUrl(this.objectUrl);
       this.safeResourceUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.objectUrl);
@@ -49,6 +58,12 @@ export class AttachmentViewerComponent implements OnInit, OnDestroy {
       this.error = true;
     }
     this.loading = false;
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   ngOnDestroy(): void {

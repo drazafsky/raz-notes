@@ -2,9 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 
 import { NoteDetailsPageComponent } from './note-details-page.component';
-import { computeNoteContentBounds } from './note-svg.utils';
+import { computeNoteContentBounds, isAttachmentElement } from './note-svg.utils';
 import { NotesStateService } from './notes-state.service';
-import { Note, NoteTextElement, StorageService } from './storage.service';
+import { Note, NoteAttachmentElement, NoteTextElement, StorageService } from './storage.service';
 
 class MockNotesStateService {
   updateError: Error | null = null;
@@ -220,6 +220,26 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.querySelector('#text-editor-t1')).toBeTruthy();
   });
 
+  it('adds selected files as attachment canvas elements', async () => {
+    const fixture = await createComponent();
+    const file = new File(['demo'], 'demo.pdf', { type: 'application/pdf' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+
+    fixture.componentInstance.onFileChange({
+      target: { files: dataTransfer.files, value: 'demo.pdf' },
+    } as unknown as Event);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.pendingAttachments.length).toBe(1);
+    expect(isAttachmentElement(fixture.componentInstance.elements.at(-1)!)).toBeTrue();
+    expect(
+      fixture.componentInstance.attachmentForElement(
+        fixture.componentInstance.elements.at(-1)! as NoteAttachmentElement,
+      )?.name,
+    ).toBe('demo.pdf');
+  });
+
   it('clicking a rendered checklist item enters edit mode through DOM events', async () => {
     const notesState = new MockNotesStateService();
     notesState.note = {
@@ -258,6 +278,57 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.selectedElementId).toBe('c1');
     expect(fixture.componentInstance.editingChecklistItemId).toBe('i1');
     expect(fixture.nativeElement.querySelector('#checklist-editor-c1-i1')).toBeTruthy();
+  });
+
+  it('does not swallow checklist pointerup while an element drag is active', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        {
+          id: 'c1',
+          type: 'checklist',
+          x: 0,
+          y: 0,
+          width: 240,
+          items: [
+            {
+              id: 'i1',
+              text: 'Checklist item',
+              state: 'unchecked',
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    const stopPropagation = jasmine.createSpy('stopPropagation');
+    const container = document.createElement('div');
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      'c1',
+    );
+
+    fixture.componentInstance.onChecklistContainerPointerUp(
+      {
+        stopPropagation,
+        target: container,
+        currentTarget: container,
+      } as unknown as PointerEvent,
+      'c1',
+    );
+
+    expect(stopPropagation).not.toHaveBeenCalled();
+    expect(
+      (fixture.componentInstance as unknown as { interactionMode: string }).interactionMode,
+    ).toBe('drag');
   });
 
   it('clicking a checklist element with the selection tool opens its active item editor', async () => {

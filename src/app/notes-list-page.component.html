@@ -182,29 +182,43 @@
                         }
                       </div>
                     </foreignObject>
+                  } @else if (isAttachmentElement(element)) {
+                    <foreignObject
+                      [attr.x]="element.x"
+                      [attr.y]="element.y"
+                      [attr.width]="element.width"
+                      [attr.height]="estimateElementHeight(element)"
+                    >
+                      @if (attachmentForElement(note, element); as attachment) {
+                        <div
+                          xmlns="http://www.w3.org/1999/xhtml"
+                          class="h-full w-full rounded border border-theme-border bg-theme-surface p-2 text-theme-text"
+                        >
+                          <div class="mb-2 truncate text-xs text-theme-muted">
+                            {{ attachment.name }}
+                          </div>
+                          <div class="h-[calc(100%-1.25rem)] overflow-hidden rounded">
+                            <app-attachment-viewer
+                              [noteId]="note.id"
+                              [attachment]="attachment"
+                              [compact]="true"
+                            />
+                          </div>
+                        </div>
+                      } @else {
+                        <div
+                          xmlns="http://www.w3.org/1999/xhtml"
+                          class="flex h-full w-full items-center justify-center rounded border border-theme-accent-border bg-theme-accent-soft px-3 text-sm text-theme-accent"
+                        >
+                          Attachment unavailable
+                        </div>
+                      }
+                    </foreignObject>
                   }
                 }
               }
             </svg>
           </a>
-
-          <div class="mt-4">
-            <h3 class="text-sm font-medium text-theme-text">Attachments</h3>
-            @if (note.attachments.length === 0) {
-              <p class="mt-2 text-sm text-theme-muted">No attachments</p>
-            } @else {
-              <div class="mt-3 flex flex-col gap-3">
-                @for (attachment of note.attachments; track attachment.id) {
-                  <div class="rounded-lg border border-theme-border bg-theme-surface p-3">
-                    <div class="mb-2 text-xs text-theme-muted">
-                      {{ attachment.name }} ({{ formatFileSize(attachment.size) }})
-                    </div>
-                    <app-attachment-viewer [noteId]="note.id" [attachment]="attachment" />
-                  </div>
-                }
-              </div>
-            }
-          </div>
         </article>
       }
     </div>
