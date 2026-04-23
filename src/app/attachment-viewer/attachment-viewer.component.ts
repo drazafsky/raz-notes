@@ -1,8 +1,12 @@
-import { Component, Input, OnInit, OnDestroy, inject } from '@angular/core';
-import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
-import { Attachment, StorageService } from '../storage.service';
+import { Component, Input, OnDestroy, OnInit, inject } from '@angular/core';
+import { DomSanitizer, SafeHtml, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 
-type AttachmentCategory = 'image' | 'video' | 'audio' | 'pdf' | 'other';
+import {
+  AttachmentPreviewCategory,
+  AttachmentPreviewService,
+  WorkbookAttachmentPreview,
+} from './attachment-preview.service';
+import { Attachment, StorageService } from '../storage.service';
 
 @Component({
   selector: 'app-attachment-viewer',
@@ -17,12 +21,20 @@ export class AttachmentViewerComponent implements OnInit, OnDestroy {
 
   private storage = inject(StorageService);
   private sanitizer = inject(DomSanitizer);
+  private previewService = inject(AttachmentPreviewService);
 
   loading = true;
   error = false;
-  category: AttachmentCategory = 'other';
+  category: AttachmentPreviewCategory = 'other';
+  previewMode: 'fallback' | 'html' | 'native' | 'workbook' = 'fallback';
+  fallbackMessage = '';
+  renderedHtml: SafeHtml = '';
+  renderedSummary = '';
   safeUrl: SafeUrl = '';
   safeResourceUrl: SafeResourceUrl = '';
+  workbookPreview: WorkbookAttachmentPreview | null = null;
+  workbookSheetHtml: SafeHtml[] = [];
+  activeSheetIndex = 0;
 
   private objectUrl = '';
 
@@ -44,20 +56,53 @@ export class AttachmentViewerComponent implements OnInit, OnDestroy {
       this.safeUrl = this.sanitizer.bypassSecurityTrustUrl(this.objectUrl);
       this.safeResourceUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.objectUrl);
 
-      const mt = this.attachment.type;
-      if (mt.startsWith('image/')) {
-        this.category = 'image';
-      } else if (mt.startsWith('video/')) {
-        this.category = 'video';
-      } else if (mt.startsWith('audio/')) {
-        this.category = 'audio';
-      } else if (mt === 'application/pdf') {
-        this.category = 'pdf';
+      const preview = await this.previewService.createPreview(this.attachment, blob, {
+        compact: this.compact,
+      });
+      this.category = preview.category;
+      switch (preview.mode) {
+        case 'native':
+          this.previewMode = 'native';
+          break;
+        case 'html':
+          this.previewMode = 'html';
+          this.renderedSummary = preview.summary;
+          this.renderedHtml = this.sanitizer.bypassSecurityTrustHtml(preview.html);
+          break;
+        case 'workbook':
+          this.previewMode = 'workbook';
+          this.workbookPreview = preview;
+          this.activeSheetIndex = preview.activeSheetIndex;
+          this.renderedSummary = preview.summary;
+          this.workbookSheetHtml = preview.sheets.map((sheet) =>
+            this.sanitizer.bypassSecurityTrustHtml(sheet.html),
+          );
+          break;
+        case 'fallback':
+          this.previewMode = 'fallback';
+          this.fallbackMessage = preview.message;
+          break;
       }
     } catch {
       this.error = true;
     }
     this.loading = false;
+  }
+
+  activeWorkbookSheetHtml(): SafeHtml {
+    return this.workbookSheetHtml[this.activeSheetIndex] ?? '';
+  }
+
+  activeWorkbookSheetSummary(): string {
+    return this.workbookPreview?.sheets[this.activeSheetIndex]?.summary ?? '';
+  }
+
+  selectWorkbookSheet(index: number): void {
+    if (!this.workbookPreview || index < 0 || index >= this.workbookPreview.sheets.length) {
+      return;
+    }
+
+    this.activeSheetIndex = index;
   }
 
   formatFileSize(bytes: number): string {

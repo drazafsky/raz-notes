@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 
+import { AttachmentPreviewService } from './attachment-viewer/attachment-preview.service';
 import { NoteDetailsPageComponent } from './note-details-page.component';
 import { computeNoteContentBounds, isAttachmentElement } from './note-svg.utils';
 import { NotesStateService } from './notes-state.service';
@@ -47,12 +48,31 @@ class MockNotesStateService {
 }
 
 describe('NoteDetailsPageComponent', () => {
-  async function createComponent(notesState = new MockNotesStateService()) {
+  function createPreviewServiceSpy() {
+    return jasmine.createSpyObj<AttachmentPreviewService>('AttachmentPreviewService', [
+      'createPreview',
+    ]);
+  }
+
+  async function createComponent(
+    notesState = new MockNotesStateService(),
+    previewService?: jasmine.SpyObj<AttachmentPreviewService>,
+  ) {
+    const attachmentPreviewService = previewService ?? createPreviewServiceSpy();
+    if (!previewService) {
+      attachmentPreviewService.createPreview.and.resolveTo({
+        mode: 'fallback',
+        category: 'other',
+        message: 'Preview unavailable for this file type.',
+      });
+    }
+
     await TestBed.configureTestingModule({
       imports: [NoteDetailsPageComponent],
       providers: [
         provideRouter([]),
         { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: attachmentPreviewService },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -73,6 +93,8 @@ describe('NoteDetailsPageComponent', () => {
     }).compileComponents();
 
     const fixture = TestBed.createComponent(NoteDetailsPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
     await fixture.whenStable();
     return fixture;
@@ -118,6 +140,33 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(notesState.deleteAttachment).toHaveBeenCalledWith(7, 'a1');
     expect(fixture.componentInstance.note?.attachments).toEqual([]);
+  });
+
+  it('renders generated DOCX previews for unplaced attachments', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      attachments: [
+        {
+          id: 'a1',
+          name: 'proposal.docx',
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          size: 16,
+        },
+      ],
+    };
+    const previewService = createPreviewServiceSpy();
+    previewService.createPreview.and.resolveTo({
+      mode: 'html',
+      category: 'docx',
+      summary: 'Higher-fidelity DOCX preview',
+      html: '<article>Quarterly review</article>',
+    });
+
+    const fixture = await createComponent(notesState, previewService);
+
+    expect(previewService.createPreview).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Quarterly review');
   });
 
   it('shows a temporary notification after a successful save', async () => {

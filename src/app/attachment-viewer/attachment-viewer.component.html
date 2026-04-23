@@ -4,7 +4,7 @@
   } @else if (error) {
     <span class="text-xs text-theme-accent">Failed to load {{ attachment.name }}</span>
   } @else {
-    @if (category === 'image') {
+    @if (previewMode === 'native' && category === 'image') {
       <img
         [src]="safeUrl"
         [alt]="attachment.name"
@@ -13,7 +13,7 @@
         [class.h-full]="compact"
         [class.w-full]="compact"
       />
-    } @else if (category === 'video') {
+    } @else if (previewMode === 'native' && category === 'video') {
       <video
         controls
         [src]="safeUrl"
@@ -21,9 +21,9 @@
         [class.max-h-64]="!compact"
         [class.h-full]="compact"
       ></video>
-    } @else if (category === 'audio') {
+    } @else if (previewMode === 'native' && category === 'audio') {
       <audio controls [src]="safeUrl" class="w-full"></audio>
-    } @else if (category === 'pdf') {
+    } @else if (previewMode === 'native' && category === 'pdf') {
       <iframe
         [src]="safeResourceUrl"
         class="w-full rounded border border-theme-border"
@@ -31,12 +31,89 @@
         [class.h-full]="compact"
         [title]="attachment.name"
       ></iframe>
+    } @else if (previewMode === 'html') {
+      <div
+        class="flex rounded border border-theme-border bg-theme-bg text-theme-text"
+        [class.h-full]="compact"
+      >
+        <div class="flex min-h-0 flex-1 flex-col gap-2 p-2">
+          <div class="flex flex-wrap items-start justify-between gap-2 text-xs text-theme-muted">
+            <span>{{ renderedSummary }}</span>
+            <a
+              [href]="safeUrl"
+              [download]="attachment.name"
+              class="text-theme-accent underline hover:text-theme-text"
+            >
+              Open or download
+            </a>
+          </div>
+          <div
+            class="min-h-0 flex-1 overflow-auto rounded border border-theme-border bg-white p-2"
+            [class.max-h-64]="!compact"
+          >
+            <div [innerHTML]="renderedHtml"></div>
+          </div>
+        </div>
+      </div>
+    } @else if (previewMode === 'workbook' && workbookPreview) {
+      <div
+        class="flex rounded border border-theme-border bg-theme-bg text-theme-text"
+        [class.h-full]="compact"
+      >
+        <div class="flex min-h-0 flex-1 flex-col gap-2 p-2">
+          <div class="flex flex-wrap items-start justify-between gap-2 text-xs text-theme-muted">
+            <span>{{ renderedSummary }}</span>
+            <a
+              [href]="safeUrl"
+              [download]="attachment.name"
+              class="text-theme-accent underline hover:text-theme-text"
+            >
+              Open or download
+            </a>
+          </div>
+
+          @if (!compact && workbookPreview.sheets.length > 1) {
+            <div class="flex flex-wrap gap-1">
+              @for (sheet of workbookPreview.sheets; track sheet.id; let index = $index) {
+                <button
+                  type="button"
+                  class="rounded border px-2 py-1 text-xs"
+                  [class.border-theme-accent]="index === activeSheetIndex"
+                  [class.bg-theme-brand-soft]="index === activeSheetIndex"
+                  [class.text-theme-accent]="index === activeSheetIndex"
+                  [class.border-theme-border]="index !== activeSheetIndex"
+                  [class.text-theme-text]="index !== activeSheetIndex"
+                  (click)="selectWorkbookSheet(index)"
+                >
+                  {{ sheet.name }}
+                </button>
+              }
+            </div>
+          }
+
+          <div
+            class="min-h-0 flex-1 overflow-auto rounded border border-theme-border bg-white p-2"
+            [class.max-h-64]="!compact"
+          >
+            <div [innerHTML]="activeWorkbookSheetHtml()"></div>
+          </div>
+
+          <div class="text-xs text-theme-muted">
+            {{ activeWorkbookSheetSummary() }}
+          </div>
+        </div>
+      </div>
     } @else {
       <div class="rounded border border-theme-border bg-theme-bg p-3 text-sm text-theme-text">
         <div class="font-medium">{{ attachment.name }}</div>
         <div class="mt-1 text-xs text-theme-muted">
           {{ attachment.type || 'Unknown file type' }} · {{ formatFileSize(attachment.size) }}
         </div>
+        @if (fallbackMessage) {
+          <div class="mt-2 text-xs text-theme-muted">
+            {{ fallbackMessage }}
+          </div>
+        }
         <a
           [href]="safeUrl"
           [download]="attachment.name"

@@ -3,6 +3,7 @@ import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterLink } from '@angular/router';
 
+import { AttachmentPreviewService } from './attachment-viewer/attachment-preview.service';
 import { AuthService, AuthStatus } from './auth.service';
 import { NotesListPageComponent } from './notes-list-page.component';
 import { NotesStateService } from './notes-state.service';
@@ -54,6 +55,19 @@ class MockNotesStateService {
 }
 
 describe('NotesListPageComponent', () => {
+  function createPreviewServiceSpy() {
+    const previewService = jasmine.createSpyObj<AttachmentPreviewService>(
+      'AttachmentPreviewService',
+      ['createPreview'],
+    );
+    previewService.createPreview.and.resolveTo({
+      mode: 'fallback',
+      category: 'other',
+      message: 'Preview unavailable for this file type.',
+    });
+    return previewService;
+  }
+
   it('renders note metadata and attachment elements without a separate attachment list', async () => {
     await TestBed.configureTestingModule({
       imports: [NotesListPageComponent],
@@ -61,6 +75,7 @@ describe('NotesListPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
         { provide: NotesStateService, useClass: MockNotesStateService },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
@@ -89,6 +104,7 @@ describe('NotesListPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
         { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
@@ -137,6 +153,7 @@ describe('NotesListPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
         { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
@@ -167,6 +184,7 @@ describe('NotesListPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
         { provide: NotesStateService, useClass: MockNotesStateService },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
@@ -242,6 +260,7 @@ describe('NotesListPageComponent', () => {
         provideRouter([]),
         { provide: AuthService, useClass: MockAuthService },
         { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
@@ -259,5 +278,77 @@ describe('NotesListPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Child task');
     expect(fixture.nativeElement.textContent).toContain('Due 2026-05-01');
     expect(fixture.nativeElement.textContent).toContain('◩');
+  });
+
+  it('renders workbook previews inside note cards', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.notes.set([
+      {
+        id: 1,
+        title: 'Spreadsheet note',
+        elements: [
+          {
+            id: 'a-el-1',
+            type: 'attachment',
+            attachmentId: 'a1',
+            x: 20,
+            y: 0,
+            width: 220,
+            height: 160,
+          },
+        ],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T01:00:00.000Z',
+        attachments: [
+          {
+            id: 'a1',
+            name: 'budget.xlsx',
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            size: 24,
+          },
+        ],
+      },
+    ]);
+    const previewService = createPreviewServiceSpy();
+    previewService.createPreview.and.resolveTo({
+      mode: 'workbook',
+      category: 'xlsx',
+      summary: '1 sheet preview',
+      activeSheetIndex: 0,
+      sheets: [
+        {
+          id: '1',
+          name: 'Summary',
+          summary: '2 rows · 2 columns',
+          html: '<table><tbody><tr><td>Revenue</td><td>84</td></tr></tbody></table>',
+        },
+      ],
+    });
+
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: previewService },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(
+              new Blob(['demo'], { type: 'application/octet-stream' }),
+            ),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(previewService.createPreview).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Revenue');
   });
 });

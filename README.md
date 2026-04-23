@@ -9,7 +9,7 @@ Raz Notes is an offline-first note app for creating SVG-based notes with local-o
 - **Optional device-backed unlock** when the browser exposes offline WebAuthn/device credential support
 - **SVG canvas notes** with pan, zoom, draggable text elements, resize handles, and inline rich-text formatting
 - **Per-selection text styling** including font family, size, color, bold, italic, underline, strikethrough, subscript, and superscript
-- **Attachments on notes** with inline viewing for supported file types
+- **Attachments on notes** with inline viewing for supported file types, including DOCX and XLSX previews
 - **Notes list previews** that render each note’s SVG content directly in the list
 - **Responsive shell and theming** with automatic light/dark mode based on the browser preference
 - **Configurable login timeout** including never-lock and application-unfocus locking modes
