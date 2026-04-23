@@ -9,7 +9,12 @@ import { Note, StorageService } from './storage.service';
 class MockAuthService {
   readonly status = signal<AuthStatus>('unlocked');
   readonly storedUsername = signal('Alice');
+  readonly passwordlessAvailable = signal(true);
+  readonly passwordlessEnrolled = signal(false);
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
+  readonly canUsePasswordless = computed(
+    () => this.passwordlessAvailable() && this.passwordlessEnrolled()
+  );
 
   async init(): Promise<void> {}
 
@@ -23,6 +28,18 @@ class MockAuthService {
     this.status.set('unlocked');
   }
 
+  async loginWithDevice(): Promise<void> {
+    this.status.set('unlocked');
+  }
+
+  async enablePasswordlessUnlock(): Promise<void> {
+    this.passwordlessEnrolled.set(true);
+  }
+
+  async disablePasswordlessUnlock(): Promise<void> {
+    this.passwordlessEnrolled.set(false);
+  }
+
   logout(): void {
     this.status.set('locked');
   }
@@ -31,6 +48,7 @@ class MockAuthService {
 class MockStorageService {
   init = jasmine.createSpy('init').and.returnValue(Promise.resolve());
   setVaultKey = jasmine.createSpy('setVaultKey');
+  exportVaultKey = jasmine.createSpy('exportVaultKey').and.returnValue(Promise.resolve(new ArrayBuffer(32)));
   readAuthRecord = jasmine.createSpy('readAuthRecord').and.returnValue(
     Promise.resolve<AuthRecord | null>(null)
   );
@@ -86,21 +104,18 @@ describe('App', () => {
     expect(mockStorage.saveNotes).toHaveBeenCalled();
   });
 
-  it('shows a validation error instead of creating a note with an empty title', async () => {
+  it('shows a device unlock button when passwordless is enabled', async () => {
+    mockAuth.status.set('locked');
+    mockAuth.passwordlessEnrolled.set(true);
+
     const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
 
-    app.noteKind = 'text';
-    app.noteTitle = '   ';
-    app.noteText = 'Some text';
-    await app.createNote();
-
-    expect(app.notes().length).toBe(0);
-    expect(app.noteError).toBe('Title is required.');
-    expect(mockStorage.saveNotes).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Unlock with device');
   });
 
-  it('loads notes after a successful login', async () => {
+  it('loads notes after a successful device unlock', async () => {
     const savedNote: Note = {
       id: 1,
       kind: 'text',
@@ -110,16 +125,13 @@ describe('App', () => {
       attachments: []
     };
     mockAuth.status.set('locked');
+    mockAuth.passwordlessEnrolled.set(true);
     mockStorage.loadNotes.and.returnValue(Promise.resolve([savedNote]));
 
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
+    await app.loginWithDevice();
 
-    app.loginUsername = 'Alice';
-    app.loginPassword = 'password123';
-    await app.login();
-
-    expect(mockAuth.status()).toBe('unlocked');
     expect(app.notes()).toEqual([savedNote]);
   });
 

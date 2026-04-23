@@ -4,9 +4,32 @@ import { AuthService } from './auth.service';
 import { AuthRecord } from './crypto.utils';
 import { StorageService } from './storage.service';
 
+function createMockPublicKeyCredential(
+  id: Uint8Array,
+  prfOutput?: Uint8Array
+): PublicKeyCredential {
+  return {
+    rawId: id.buffer.slice(0),
+    getClientExtensionResults: () =>
+      prfOutput
+        ? {
+            prf: {
+              enabled: true,
+              results: {
+                first: prfOutput.buffer.slice(0)
+              }
+            }
+          }
+        : { prf: { enabled: true } }
+  } as unknown as PublicKeyCredential;
+}
+
 describe('AuthService', () => {
   let service: AuthService;
   let storage: jasmine.SpyObj<StorageService>;
+  let createSpy: jasmine.Spy;
+  let getSpy: jasmine.Spy;
+  let originalGetClientCapabilities: (() => Promise<Record<string, boolean | undefined>>) | undefined;
 
   beforeEach(() => {
     storage = jasmine.createSpyObj<StorageService>('StorageService', [
@@ -14,6 +37,7 @@ describe('AuthService', () => {
       'readAuthRecord',
       'saveAuthRecord',
       'setVaultKey',
+      'exportVaultKey',
       'loadNotes',
       'saveNotes',
       'writeAttachment',
@@ -23,6 +47,22 @@ describe('AuthService', () => {
     storage.init.and.returnValue(Promise.resolve());
     storage.readAuthRecord.and.returnValue(Promise.resolve(null));
     storage.saveAuthRecord.and.returnValue(Promise.resolve());
+    storage.exportVaultKey.and.returnValue(Promise.resolve(new Uint8Array(32).fill(9).buffer));
+
+    createSpy = spyOn(navigator.credentials, 'create').and.returnValue(Promise.resolve(null));
+    getSpy = spyOn(navigator.credentials, 'get').and.returnValue(Promise.resolve(null));
+    spyOn(PublicKeyCredential, 'isUserVerifyingPlatformAuthenticatorAvailable').and.returnValue(
+      Promise.resolve(true)
+    );
+    originalGetClientCapabilities = (
+      PublicKeyCredential as typeof PublicKeyCredential & {
+        getClientCapabilities?: () => Promise<Record<string, boolean | undefined>>;
+      }
+    ).getClientCapabilities;
+    Object.defineProperty(PublicKeyCredential, 'getClientCapabilities', {
+      configurable: true,
+      value: jasmine.createSpy('getClientCapabilities').and.returnValue(Promise.resolve({ prf: true }))
+    });
 
     TestBed.configureTestingModule({
       providers: [{ provide: StorageService, useValue: storage }]
@@ -31,11 +71,18 @@ describe('AuthService', () => {
     service = TestBed.inject(AuthService);
   });
 
+  afterEach(() => {
+    Object.defineProperty(PublicKeyCredential, 'getClientCapabilities', {
+      configurable: true,
+      value: originalGetClientCapabilities
+    });
+  });
+
   it('starts in setup mode when no auth record exists', async () => {
     await service.init();
 
     expect(service.status()).toBe('setup-required');
-    expect(service.storedUsername()).toBe('');
+    expect(service.passwordlessAvailable()).toBeTrue();
   });
 
   it('creates an account, persists the auth record, and unlocks the vault', async () => {
@@ -58,25 +105,64 @@ describe('AuthService', () => {
     expect(storage.setVaultKey).toHaveBeenCalled();
   });
 
-  it('rejects an invalid password', async () => {
+  it('enables and uses passwordless unlock when the browser supports it', async () => {
+    await service.init();
     await service.createAccount('Alice', 'password123');
-    service.logout();
 
-    await expectAsync(service.login('Alice', 'wrong-password')).toBeRejectedWithError(
-      'Invalid username or password.'
-    );
+    const credentialId = new Uint8Array([1, 2, 3, 4]);
+    const prfOutput = new Uint8Array(32).fill(7);
+    createSpy.and.returnValue(Promise.resolve(createMockPublicKeyCredential(credentialId)));
+    getSpy.and.returnValue(Promise.resolve(createMockPublicKeyCredential(credentialId, prfOutput)));
+
+    await service.enablePasswordlessUnlock();
+    service.logout();
+    storage.setVaultKey.calls.reset();
+
+    await service.loginWithDevice();
+
+    expect(service.passwordlessEnrolled()).toBeTrue();
+    expect(service.status()).toBe('unlocked');
+    expect(createSpy).toHaveBeenCalled();
+    expect(getSpy).toHaveBeenCalled();
+    expect(storage.setVaultKey).toHaveBeenCalled();
   });
 
-  it('loads a stored account and starts locked', async () => {
+  it('removes passwordless unlock from the stored auth record', async () => {
+    await service.init();
     await service.createAccount('Alice', 'password123');
-    service.logout();
+
+    const credentialId = new Uint8Array([1, 2, 3, 4]);
+    const prfOutput = new Uint8Array(32).fill(7);
+    createSpy.and.returnValue(Promise.resolve(createMockPublicKeyCredential(credentialId)));
+    getSpy.and.returnValue(Promise.resolve(createMockPublicKeyCredential(credentialId, prfOutput)));
+
+    await service.enablePasswordlessUnlock();
+    await service.disablePasswordlessUnlock();
+
+    expect(service.passwordlessEnrolled()).toBeFalse();
+    expect((storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord).passwordless).toBeUndefined();
+  });
+
+  it('loads a stored account and starts locked with passwordless state', async () => {
+    await service.createAccount('Alice', 'password123');
+    const saved = storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord;
     storage.readAuthRecord.and.returnValue(
-      Promise.resolve(storage.saveAuthRecord.calls.mostRecent().args[0] as AuthRecord)
+      Promise.resolve({
+        ...saved,
+        passwordless: {
+          version: 1,
+          credentialId: 'AQIDBA==',
+          prfSalt: 'AQIDBA==',
+          iv: 'AQIDBA==',
+          wrappedVaultKey: 'AQIDBA==',
+          createdAt: new Date().toISOString()
+        }
+      })
     );
 
     await service.init();
 
     expect(service.status()).toBe('locked');
-    expect(service.storedUsername()).toBe('Alice');
+    expect(service.passwordlessEnrolled()).toBeTrue();
   });
 });

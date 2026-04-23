@@ -48,6 +48,10 @@ export class StorageService {
     this.vaultKey = vaultKey;
   }
 
+  async exportVaultKey(): Promise<ArrayBuffer> {
+    return crypto.subtle.exportKey('raw', this.requireVaultKey());
+  }
+
   async readAuthRecord(): Promise<AuthRecord | null> {
     const text = await this.tryReadTextFile(AUTH_FILE);
     if (!text) {
