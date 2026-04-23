@@ -7,7 +7,7 @@ type AttachmentCategory = 'image' | 'video' | 'audio' | 'pdf' | 'other';
 @Component({
   selector: 'app-attachment-viewer',
   standalone: true,
-  templateUrl: './attachment-viewer.component.html'
+  templateUrl: './attachment-viewer.component.html',
 })
 export class AttachmentViewerComponent implements OnInit, OnDestroy {
   @Input({ required: true }) noteId!: number;
@@ -29,7 +29,7 @@ export class AttachmentViewerComponent implements OnInit, OnDestroy {
       const blob = await this.storage.readAttachment(
         this.noteId,
         this.attachment.id,
-        this.attachment.type
+        this.attachment.type,
       );
       this.objectUrl = URL.createObjectURL(blob);
       this.safeUrl = this.sanitizer.bypassSecurityTrustUrl(this.objectUrl);

@@ -1,6 +1,7 @@
 import { computed, signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, RouterLink } from '@angular/router';
 
 import { AuthService, AuthStatus } from './auth.service';
 import { NotesListPageComponent } from './notes-list-page.component';
@@ -14,7 +15,7 @@ class MockAuthService {
   readonly passwordlessEnrolled = signal(false);
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
   readonly canUsePasswordless = computed(
-    () => this.passwordlessAvailable() && this.passwordlessEnrolled()
+    () => this.passwordlessAvailable() && this.passwordlessEnrolled(),
   );
 
   async enablePasswordlessUnlock(): Promise<void> {
@@ -34,8 +35,8 @@ class MockNotesStateService {
       elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T01:00:00.000Z',
-      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
-    }
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
+    },
   ]);
   readonly notesByUpdatedAt = computed(() => this.notes());
   deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
@@ -52,10 +53,10 @@ describe('NotesListPageComponent', () => {
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
-            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' }))
-          })
-        }
-      ]
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(NotesListPageComponent);
@@ -79,10 +80,10 @@ describe('NotesListPageComponent', () => {
         {
           provide: StorageService,
           useValue: jasmine.createSpyObj<StorageService>('StorageService', {
-            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' }))
-          })
-        }
-      ]
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(NotesListPageComponent);
@@ -91,5 +92,97 @@ describe('NotesListPageComponent', () => {
     await component.deleteNote(1);
 
     expect(notesState.deleteNote).toHaveBeenCalledWith(1);
+  });
+
+  it('renders saved text styling in the note preview', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.notes.set([
+      {
+        id: 1,
+        title: 'Styled',
+        elements: [
+          {
+            id: 't1',
+            text: 'Styled body',
+            x: 0,
+            y: 0,
+            width: 180,
+            fontSize: 32,
+            fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+            bold: true,
+            italic: true,
+            underline: true,
+          },
+        ],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T01:00:00.000Z',
+        attachments: [],
+      },
+    ]);
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const previewText = fixture.nativeElement.querySelector(
+      'foreignObject div.whitespace-pre-wrap',
+    ) as HTMLDivElement;
+
+    expect(previewText.style.fontSize).toBe('32px');
+    expect(previewText.style.fontStyle).toBe('italic');
+    expect(previewText.style.fontWeight).toBe('700');
+    expect(previewText.style.textDecoration).toContain('underline');
+  });
+
+  it('uses the same note route for the preview and Open link', async () => {
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useClass: MockNotesStateService },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const previewLink = fixture.debugElement.query(
+      By.css('a[aria-label="Open preview for Saved"]'),
+    );
+    const openLink = fixture.debugElement
+      .queryAll(By.directive(RouterLink))
+      .find(
+        (debugElement) =>
+          debugElement.nativeElement instanceof HTMLAnchorElement &&
+          debugElement.nativeElement.textContent.trim() === 'Open',
+      );
+
+    expect(previewLink).withContext('Expected the note preview to be a link').not.toBeNull();
+    expect(openLink).withContext('Expected the note card to keep its Open link').toBeDefined();
+    expect(previewLink.nativeElement.getAttribute('href')).toBe(
+      openLink?.nativeElement.getAttribute('href'),
+    );
   });
 });
