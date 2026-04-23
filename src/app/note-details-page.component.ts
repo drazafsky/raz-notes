@@ -302,6 +302,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.cleanupChecklistItemsOnUnselect(elementId);
     this.selectedElementId = elementId;
     if (isChecklistElement(element)) {
       this.selectedChecklistItemId =
@@ -345,6 +346,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     event.stopPropagation();
+    this.cleanupChecklistItemsOnUnselect(elementId);
     this.selectedElementId = elementId;
     this.selectedChecklistItemId = isChecklistElement(element)
       ? (element.items[0]?.id ?? null)
@@ -436,11 +438,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
             height: Math.max(48, this.elementStart.height + dy / this.scale),
           }),
     );
+    if (isChecklistElement(element)) {
+      this.syncChecklistElementHeightToContent(element.id);
+    }
   }
 
   @HostListener('document:pointerup', ['$event'])
   onDocumentPointerUp(event: PointerEvent): void {
     if (this.interactionMode === 'canvas' && !this.interactionMoved) {
+      this.cleanupChecklistItemsOnUnselect(null);
       if (this.activeTool === 'text') {
         const point = this.pointerToCanvas(event);
         this.addTextElement(point.x, point.y);
@@ -746,10 +752,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private updateChecklistElement(
     elementId: string,
     updater: (element: NoteChecklistElement) => NoteChecklistElement,
+    syncHeightToContent = true,
   ): void {
     this.updateElement(elementId, (element) =>
       isChecklistElement(element) ? normalizeChecklistElement(updater(element)) : element,
     );
+    if (syncHeightToContent) {
+      this.syncChecklistElementHeightToContent(elementId);
+    }
   }
 
   private syncNoteElements(): void {
@@ -798,6 +808,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   checklistEditorId(elementId: string, itemId: string): string {
     return `checklist-editor-${elementId}-${itemId}`;
+  }
+
+  checklistContainerId(elementId: string): string {
+    return `checklist-container-${elementId}`;
   }
 
   checklistRowsFor(element: NoteChecklistElement): ChecklistLayoutRow[] {
@@ -874,6 +888,13 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.insertChecklistChild(this.selectedElementId, this.selectedChecklistItemId);
   }
 
+  deleteChecklistItemFromRow(event: Event, elementId: string, itemId: string): void {
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.deleteChecklistItem(elementId, itemId);
+  }
+
   updateActiveChecklistDueDate(value: string): void {
     if (!this.selectedElementId || !this.selectedChecklistItemId) {
       return;
@@ -943,12 +964,16 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.editingChecklistItemId = itemId;
   }
 
-  stopChecklistItemEditing(event?: FocusEvent): void {
+  stopChecklistItemEditing(itemId: string, event?: FocusEvent): void {
     const nextTarget = event?.relatedTarget;
     if (
       nextTarget instanceof HTMLElement &&
       nextTarget.closest('[data-checklist-toolbar="true"]')
     ) {
+      return;
+    }
+
+    if (this.editingChecklistItemId !== itemId) {
       return;
     }
 
@@ -1096,6 +1121,11 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return editor instanceof HTMLDivElement ? editor : null;
   }
 
+  private getChecklistContainerElement(elementId: string): HTMLDivElement | null {
+    const container = document.getElementById(this.checklistContainerId(elementId));
+    return container instanceof HTMLDivElement ? container : null;
+  }
+
   private startEditingChecklistItem(
     elementId: string,
     itemId: string | null,
@@ -1122,13 +1152,11 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
         };
 
         focusEditor();
-        if (selection === 'all') {
-          requestAnimationFrame(() => {
-            if (this.editingChecklistItemId === itemId) {
-              focusEditor();
-            }
-          });
-        }
+        setTimeout(() => {
+          if (this.editingChecklistItemId === itemId) {
+            focusEditor();
+          }
+        });
       }
     });
   }
@@ -1180,6 +1208,57 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.startEditingChecklistItem(elementId, nextItem.id, 'all');
   }
 
+  private deleteChecklistItem(elementId: string, itemId: string): void {
+    const element = this.getChecklistElement(elementId);
+    const location = this.findChecklistItemLocation(elementId, itemId);
+    if (!element || !location) {
+      return;
+    }
+
+    const siblingIds = this.getChecklistSiblings(element.items, location.parentId).map(
+      (item) => item.id,
+    );
+    const fallbackSelectionId =
+      siblingIds[location.index + 1] ?? siblingIds[location.index - 1] ?? location.parentId ?? null;
+
+    const nextItems = this.removeChecklistItemFromParent(element.items, location.parentId, itemId);
+    if (nextItems.length === 0) {
+      const replacement = createChecklistItem('');
+      this.updateChecklistElement(elementId, (currentElement) => ({
+        ...currentElement,
+        items: [replacement],
+      }));
+      this.startEditingChecklistItem(elementId, replacement.id, 'all');
+      return;
+    }
+
+    this.updateChecklistElement(elementId, (currentElement) => ({
+      ...currentElement,
+      items: nextItems,
+    }));
+
+    this.editingChecklistItemId = null;
+    this.editorSelectionRange = null;
+    this.selectedChecklistItemId = fallbackSelectionId;
+  }
+
+  private cleanupChecklistItemsOnUnselect(nextSelectedElementId: string | null): void {
+    if (!this.selectedElementId || this.selectedElementId === nextSelectedElementId) {
+      return;
+    }
+
+    const currentChecklist = this.getChecklistElement(this.selectedElementId);
+    if (!currentChecklist) {
+      return;
+    }
+
+    const prunedItems = this.pruneEmptyChecklistItems(currentChecklist.items);
+    this.updateChecklistElement(currentChecklist.id, (element) => ({
+      ...element,
+      items: prunedItems.length > 0 ? prunedItems : [createChecklistItem('')],
+    }));
+  }
+
   private setChecklistItemDueDate(
     elementId: string,
     itemId: string,
@@ -1189,6 +1268,32 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       ...item,
       dueDate,
     }));
+  }
+
+  private syncChecklistElementHeightToContent(elementId: string): void {
+    setTimeout(() => {
+      this.changeDetectorRef.detectChanges();
+      const element = this.getChecklistElement(elementId);
+      const container = this.getChecklistContainerElement(elementId);
+      if (!element || !container) {
+        return;
+      }
+
+      const requiredHeight = Math.ceil(container.scrollHeight);
+      const currentHeight = element.height ?? this.estimateElementHeight(element);
+      if (requiredHeight <= currentHeight) {
+        return;
+      }
+
+      this.updateChecklistElement(
+        elementId,
+        (currentElement) => ({
+          ...currentElement,
+          height: requiredHeight,
+        }),
+        false,
+      );
+    });
   }
 
   private applyChecklistItemEditorCommand(
@@ -1446,6 +1551,46 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
             ),
           },
     );
+  }
+
+  private removeChecklistItemFromParent(
+    items: NoteChecklistItem[],
+    parentId: string | null,
+    itemId: string,
+  ): NoteChecklistItem[] {
+    if (parentId === null) {
+      return items.filter((item) => item.id !== itemId);
+    }
+
+    return items.map((item) =>
+      item.id === parentId
+        ? {
+            ...item,
+            children: item.children.filter((child) => child.id !== itemId),
+          }
+        : {
+            ...item,
+            children: this.removeChecklistItemFromParent(item.children, parentId, itemId),
+          },
+    );
+  }
+
+  private pruneEmptyChecklistItems(items: NoteChecklistItem[]): NoteChecklistItem[] {
+    return items.flatMap((item) => {
+      const children = this.pruneEmptyChecklistItems(item.children);
+      if (item.text.trim().length === 0) {
+        return children;
+      }
+
+      return [
+        children === item.children
+          ? item
+          : {
+              ...item,
+              children,
+            },
+      ];
+    });
   }
 
   private findChecklistItemLocation(

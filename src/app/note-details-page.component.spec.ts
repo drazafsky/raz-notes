@@ -647,6 +647,204 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Clear date');
   });
 
+  it('deletes a checklist item from its row action', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string }[];
+    };
+
+    fixture.componentInstance.addChecklistSiblingFromToolbar();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const deleteButtons = fixture.nativeElement.querySelectorAll(
+      'button[aria-label="Delete checklist item"]',
+    ) as NodeListOf<HTMLButtonElement>;
+    deleteButtons[1]?.click();
+    fixture.detectChanges();
+
+    const checklistAfterDelete = fixture.componentInstance.elements.at(-1) as {
+      items: { id: string }[];
+    };
+
+    expect(checklistAfterDelete.items.length).toBe(1);
+    expect(checklistAfterDelete.items[0].id).toBe(checklist.items[0].id);
+    expect(fixture.componentInstance.selectedChecklistItemId).toBe(checklist.items[0].id);
+  });
+
+  it('replaces the last checklist item with a new focused empty item when deleted', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; text: string }[];
+    };
+    const originalItemId = checklist.items[0].id;
+
+    const deleteButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Delete checklist item"]',
+    ) as HTMLButtonElement;
+    deleteButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklistAfterDelete = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; text: string }[];
+    };
+    const replacementItem = checklistAfterDelete.items[0];
+
+    expect(replacementItem.id).not.toBe(originalItemId);
+    expect(replacementItem.text).toBe('');
+    expect(fixture.componentInstance.selectedChecklistItemId).toBe(replacementItem.id);
+    expect(document.activeElement?.id).toBe(
+      fixture.componentInstance.checklistEditorId(checklistAfterDelete.id, replacementItem.id),
+    );
+  });
+
+  it('removes empty checklist items when the checklist is unselected', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.addChecklistSiblingFromToolbar();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(
+      (fixture.componentInstance.elements.at(-1) as { items: { id: string }[] }).items.length,
+    ).toBe(2);
+
+    fixture.componentInstance.setActiveTool('selection');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 20,
+      clientY: 20,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklistAfterUnselect = fixture.componentInstance.elements.at(-1) as {
+      items: { id: string }[];
+    };
+
+    expect(checklistAfterUnselect.items.length).toBe(1);
+    expect(fixture.componentInstance.selectedElementId).toBeNull();
+    expect(fixture.componentInstance.selectedChecklistItemId).toBeNull();
+  });
+
+  it('grows checklist height when edited text would overflow the current frame', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      height: number;
+      items: { id: string }[];
+    };
+    const editor = fixture.nativeElement.querySelector(
+      `#${fixture.componentInstance.checklistEditorId(checklist.id, checklist.items[0].id)}`,
+    ) as HTMLDivElement;
+    editor.innerHTML = 'Wrapped content '.repeat(30);
+    fixture.componentInstance.onChecklistItemInput(checklist.id, checklist.items[0].id, {
+      target: editor,
+    } as unknown as Event);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const updatedChecklist = fixture.componentInstance.elements.at(-1) as {
+      height: number;
+    };
+
+    expect(updatedChecklist.height).toBeGreaterThan(checklist.height);
+  });
+
+  it('grows checklist height when adding items would overflow the current frame', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      height: number;
+    };
+
+    fixture.componentInstance.addChecklistSiblingFromToolbar();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const updatedChecklist = fixture.componentInstance.elements.at(-1) as {
+      height: number;
+    };
+
+    expect(updatedChecklist.height).toBeGreaterThan(checklist.height);
+  });
+
   it('renders checklist bodies with a transparent background', async () => {
     const fixture = await createComponent();
 

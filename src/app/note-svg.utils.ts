@@ -15,7 +15,7 @@ export const CHECKLIST_INDENT_PX = 24;
 export const CHECKLIST_ROW_BASE_HEIGHT = 32;
 export const CHECKLIST_DUE_DATE_HEIGHT = 24;
 export const CHECKLIST_PADDING_Y = 12;
-const CHECKLIST_TEXT_WIDTH_OFFSET = 72;
+const CHECKLIST_TEXT_WIDTH_OFFSET = 112;
 
 export interface NoteContentBounds {
   minX: number;
