@@ -9,7 +9,7 @@ import {
   toArrayBuffer,
   utf8ToBytes,
 } from './crypto.utils';
-import { normalizeNoteTextElement } from './note-svg.utils';
+import { normalizeChecklistElement, normalizeNoteTextElement } from './note-svg.utils';
 
 export interface Attachment {
   id: string;
@@ -19,6 +19,7 @@ export interface Attachment {
 }
 
 export interface NoteTextElement {
+  type?: 'text';
   id: string;
   text: string;
   richTextHtml?: string;
@@ -34,10 +35,33 @@ export interface NoteTextElement {
   underline?: boolean;
 }
 
+export type ChecklistItemState = 'unchecked' | 'partial' | 'checked';
+
+export interface NoteChecklistItem {
+  id: string;
+  text: string;
+  richTextHtml?: string;
+  state: ChecklistItemState;
+  dueDate?: string;
+  children: NoteChecklistItem[];
+}
+
+export interface NoteChecklistElement {
+  type: 'checklist';
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+  items: NoteChecklistItem[];
+}
+
+export type NoteElement = NoteTextElement | NoteChecklistElement;
+
 export interface Note {
   id: number;
   title: string;
-  elements: NoteTextElement[];
+  elements: NoteElement[];
   createdAt: string;
   lastModifiedAt: string;
   attachments: Attachment[];
@@ -222,7 +246,7 @@ export class StorageService {
     };
   }
 
-  private normalizeElements(note: Partial<Note> & Record<string, unknown>): NoteTextElement[] {
+  private normalizeElements(note: Partial<Note> & Record<string, unknown>): NoteElement[] {
     if (Array.isArray(note.elements)) {
       return note.elements.map((element, index) =>
         this.normalizeElement(element as unknown as Record<string, unknown>, index),
@@ -232,8 +256,21 @@ export class StorageService {
     return this.migrateLegacyContentToElements(note);
   }
 
-  private normalizeElement(element: Record<string, unknown>, index: number): NoteTextElement {
+  private normalizeElement(element: Record<string, unknown>, index: number): NoteElement {
+    if (element['type'] === 'checklist') {
+      return normalizeChecklistElement({
+        type: 'checklist',
+        id: typeof element['id'] === 'string' ? (element['id'] as string) : `checklist-${index}`,
+        x: typeof element['x'] === 'number' ? (element['x'] as number) : 0,
+        y: typeof element['y'] === 'number' ? (element['y'] as number) : 0,
+        width: typeof element['width'] === 'number' ? (element['width'] as number) : undefined,
+        height: typeof element['height'] === 'number' ? (element['height'] as number) : undefined,
+        items: Array.isArray(element['items']) ? (element['items'] as unknown[]) : [],
+      });
+    }
+
     return normalizeNoteTextElement({
+      type: 'text',
       id: typeof element['id'] === 'string' ? (element['id'] as string) : `text-${index}`,
       text: typeof element['text'] === 'string' ? (element['text'] as string) : 'New text',
       richTextHtml:
@@ -256,10 +293,11 @@ export class StorageService {
     });
   }
 
-  private migrateLegacyContentToElements(note: Record<string, unknown>): NoteTextElement[] {
+  private migrateLegacyContentToElements(note: Record<string, unknown>): NoteElement[] {
     if (typeof note['text'] === 'string' && note['text'].trim()) {
       return [
         normalizeNoteTextElement({
+          type: 'text',
           id: crypto.randomUUID(),
           text: note['text'].trim(),
           x: 0,
@@ -271,12 +309,18 @@ export class StorageService {
 
     if (Array.isArray(note['todos']) && note['todos'].length > 0) {
       return [
-        normalizeNoteTextElement({
+        normalizeChecklistElement({
+          type: 'checklist',
           id: crypto.randomUUID(),
-          text: (note['todos'] as string[]).map((item) => `• ${item}`).join('\n'),
           x: 0,
           y: 0,
           width: 280,
+          items: (note['todos'] as string[]).map((item) => ({
+            id: crypto.randomUUID(),
+            text: item,
+            state: 'unchecked',
+            children: [],
+          })),
         }),
       ];
     }

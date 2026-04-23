@@ -13,8 +13,8 @@
     <div>
       <h2 class="text-xl font-semibold text-theme-text">Your notes</h2>
       <p class="mt-1 text-sm text-theme-muted">
-        Browse every SVG note, preview its canvas, and open it to pan, zoom, add text, drag items,
-        or resize them.
+        Browse every SVG note, preview its canvas, and open it to pan, zoom, add text or checklists,
+        drag items, or resize them.
       </p>
     </div>
 
@@ -127,25 +127,62 @@
                 <text x="0" y="0" fill="rgb(var(--theme-muted) / 1)">Empty note</text>
               } @else {
                 @for (element of note.elements; track element.id) {
-                  <foreignObject
-                    [attr.x]="element.x"
-                    [attr.y]="element.y - fontSizeFor(element)"
-                    [attr.width]="element.width"
-                    [attr.height]="estimateElementHeight(element)"
-                  >
-                    <div
-                      xmlns="http://www.w3.org/1999/xhtml"
-                      class="whitespace-pre-wrap break-words text-theme-text"
-                      [style.color]="textColorFor(element)"
-                      [style.fontFamily]="fontFamilyFor(element)"
-                      [style.fontSize.px]="fontSizeFor(element)"
-                      [style.lineHeight]="1.35"
-                      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
-                      [style.fontWeight]="element.bold ? '700' : '400'"
-                      [style.textDecoration]="element.underline ? 'underline' : 'none'"
-                      [innerHTML]="trustedRichTextHtmlFor(element)"
-                    ></div>
-                  </foreignObject>
+                  @if (isTextElement(element)) {
+                    <foreignObject
+                      [attr.x]="element.x"
+                      [attr.y]="element.y - fontSizeFor(element)"
+                      [attr.width]="element.width"
+                      [attr.height]="estimateElementHeight(element)"
+                    >
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        class="whitespace-pre-wrap break-words text-theme-text"
+                        [style.color]="textColorFor(element)"
+                        [style.fontFamily]="fontFamilyFor(element)"
+                        [style.fontSize.px]="fontSizeFor(element)"
+                        [style.lineHeight]="1.35"
+                        [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+                        [style.fontWeight]="element.bold ? '700' : '400'"
+                        [style.textDecoration]="element.underline ? 'underline' : 'none'"
+                        [innerHTML]="trustedRichTextHtmlFor(element)"
+                      ></div>
+                    </foreignObject>
+                  } @else if (isChecklistElement(element)) {
+                    <foreignObject
+                      [attr.x]="element.x"
+                      [attr.y]="element.y"
+                      [attr.width]="element.width"
+                      [attr.height]="estimateElementHeight(element)"
+                    >
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        class="flex h-full w-full flex-col gap-1 rounded border border-transparent bg-transparent px-3 py-2 text-sm text-theme-text"
+                      >
+                        @for (row of checklistRowsFor(element); track row.item.id) {
+                          <div
+                            [style.marginLeft.px]="row.depth * 24"
+                            class="flex items-start gap-2"
+                          >
+                            <span class="mt-0.5 text-xs text-theme-muted">
+                              {{ checklistStateSymbol(row.item.state) }}
+                            </span>
+                            <div class="min-w-0 flex-1">
+                              <div
+                                class="whitespace-pre-wrap break-words"
+                                [class.line-through]="row.item.state === 'checked'"
+                                [innerHTML]="trustedChecklistItemHtml(row.item)"
+                              ></div>
+                              @if (row.item.dueDate) {
+                                <div class="text-[10px] text-theme-muted">
+                                  Due {{ row.item.dueDate }}
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </foreignObject>
+                  }
                 }
               }
             </svg>

@@ -1,12 +1,16 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth.service';
-import { normalizeNoteTextElement } from './note-svg.utils';
-import { Note, NoteTextElement, StorageService } from './storage.service';
+import {
+  isChecklistElement,
+  normalizeChecklistElement,
+  normalizeNoteTextElement,
+} from './note-svg.utils';
+import { Note, NoteElement, StorageService } from './storage.service';
 
 export interface NoteInput {
   title: string;
-  elements: NoteTextElement[];
+  elements: NoteElement[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -121,7 +125,9 @@ export class NotesStateService {
     return note;
   }
 
-  private normalizeElement(element: NoteTextElement): NoteTextElement {
-    return normalizeNoteTextElement(element);
+  private normalizeElement(element: NoteElement): NoteElement {
+    return isChecklistElement(element)
+      ? normalizeChecklistElement(element)
+      : normalizeNoteTextElement(element);
   }
 }

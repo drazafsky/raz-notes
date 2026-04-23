@@ -1,9 +1,21 @@
-import type { NoteTextElement } from './storage.service';
+import type {
+  NoteChecklistElement,
+  NoteChecklistItem,
+  NoteElement,
+  NoteTextElement,
+} from './storage.service';
+import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
 
 const DEFAULT_VIEWBOX = '-240 -180 480 360';
 export const DEFAULT_TEXT_FONT_SIZE = 24;
 export const DEFAULT_TEXT_ELEMENT_WIDTH = 180;
 export const DEFAULT_TEXT_FONT_FAMILY = 'Inter, ui-sans-serif, system-ui, sans-serif';
+export const DEFAULT_CHECKLIST_ELEMENT_WIDTH = 280;
+export const CHECKLIST_INDENT_PX = 24;
+export const CHECKLIST_ROW_BASE_HEIGHT = 32;
+export const CHECKLIST_DUE_DATE_HEIGHT = 24;
+export const CHECKLIST_PADDING_Y = 12;
+const CHECKLIST_TEXT_WIDTH_OFFSET = 72;
 
 export interface NoteContentBounds {
   minX: number;
@@ -37,8 +49,23 @@ export function estimateTextElementHeight(
   return Math.max(contentHeight, element.height ?? 0);
 }
 
+export function estimateChecklistElementHeight(
+  element: Pick<NoteChecklistElement, 'width' | 'height' | 'items'>,
+): number {
+  const rows = layoutChecklistRows(element);
+  const contentHeight =
+    rows.length > 0
+      ? rows[rows.length - 1].top + rows[rows.length - 1].height + CHECKLIST_PADDING_Y
+      : CHECKLIST_ROW_BASE_HEIGHT + CHECKLIST_PADDING_Y * 2;
+  const fallbackHeight = Math.max(
+    CHECKLIST_ROW_BASE_HEIGHT + CHECKLIST_PADDING_Y * 2,
+    contentHeight,
+  );
+  return Math.max(fallbackHeight, element.height ?? 0);
+}
+
 export function normalizeNoteTextElement(
-  element: Pick<NoteTextElement, 'id' | 'text' | 'x' | 'y'> &
+  element: Pick<NoteTextElement, 'id' | 'text' | 'x' | 'y' | 'type'> &
     Partial<
       Pick<
         NoteTextElement,
@@ -59,6 +86,7 @@ export function normalizeNoteTextElement(
   const fontSize = resolveTextFontSize(element);
 
   return {
+    type: 'text',
     id: element.id,
     text: element.text,
     richTextHtml:
@@ -86,7 +114,163 @@ export function normalizeNoteTextElement(
   };
 }
 
-export function computeNoteViewBox(elements: NoteTextElement[]): string {
+export function normalizeChecklistElement(
+  element: Pick<NoteChecklistElement, 'id' | 'x' | 'y' | 'type'> &
+    Partial<Pick<NoteChecklistElement, 'width' | 'height'>> & { items?: unknown[] },
+): NoteChecklistElement {
+  const width =
+    typeof element.width === 'number'
+      ? Math.max(180, element.width)
+      : DEFAULT_CHECKLIST_ELEMENT_WIDTH;
+  const items =
+    Array.isArray(element.items) && element.items.length > 0
+      ? element.items.map((item, index) =>
+          normalizeChecklistItem(
+            item as Partial<NoteChecklistItem> | Record<string, unknown>,
+            index,
+          ),
+        )
+      : [createChecklistItem('Checklist item')];
+
+  return {
+    type: 'checklist',
+    id: element.id,
+    x: element.x,
+    y: element.y,
+    width,
+    items,
+    height: estimateChecklistElementHeight({
+      width,
+      height: element.height,
+      items,
+    }),
+  };
+}
+
+export function createChecklistItem(text = ''): NoteChecklistItem {
+  return {
+    id: crypto.randomUUID(),
+    text,
+    richTextHtml: text ? plainTextToRichHtml(text) : undefined,
+    state: 'unchecked',
+    children: [],
+  };
+}
+
+export function normalizeChecklistItem(
+  item: Partial<NoteChecklistItem> | Record<string, unknown>,
+  index: number,
+): NoteChecklistItem {
+  const candidate = item as Partial<NoteChecklistItem> & Record<string, unknown>;
+  const text = typeof candidate.text === 'string' ? candidate.text : 'Checklist item';
+  return {
+    id: typeof candidate.id === 'string' ? candidate.id : `checklist-item-${index}`,
+    text,
+    richTextHtml:
+      typeof candidate.richTextHtml === 'string' && candidate.richTextHtml
+        ? candidate.richTextHtml
+        : plainTextToRichHtml(text),
+    state:
+      candidate.state === 'checked' ||
+      candidate.state === 'partial' ||
+      candidate.state === 'unchecked'
+        ? candidate.state
+        : 'unchecked',
+    dueDate:
+      typeof candidate.dueDate === 'string' && candidate.dueDate ? candidate.dueDate : undefined,
+    children: Array.isArray(candidate.children)
+      ? candidate.children.map((child, childIndex) =>
+          normalizeChecklistItem(
+            child as Partial<NoteChecklistItem> | Record<string, unknown>,
+            childIndex,
+          ),
+        )
+      : [],
+  };
+}
+
+export interface FlattenedChecklistItem {
+  item: NoteChecklistItem;
+  depth: number;
+  parentId: string | null;
+}
+
+export function flattenChecklistItems(
+  items: NoteChecklistItem[],
+  depth = 0,
+  parentId: string | null = null,
+): FlattenedChecklistItem[] {
+  return items.flatMap((item) => [
+    { item, depth, parentId },
+    ...flattenChecklistItems(item.children, depth + 1, item.id),
+  ]);
+}
+
+export interface ChecklistLayoutRow extends FlattenedChecklistItem {
+  top: number;
+  height: number;
+  availableWidth: number;
+}
+
+export function layoutChecklistRows(
+  element: Pick<NoteChecklistElement, 'width' | 'items'>,
+): ChecklistLayoutRow[] {
+  let top = CHECKLIST_PADDING_Y;
+  return flattenChecklistItems(element.items).map((row) => {
+    const availableWidth = Math.max(
+      120,
+      element.width - CHECKLIST_TEXT_WIDTH_OFFSET - row.depth * CHECKLIST_INDENT_PX,
+    );
+    const height = estimateChecklistRowHeight(row.item, availableWidth);
+    const layoutRow: ChecklistLayoutRow = {
+      ...row,
+      top,
+      height,
+      availableWidth,
+    };
+    top += height;
+    return layoutRow;
+  });
+}
+
+function estimateChecklistRowHeight(
+  item: Pick<NoteChecklistItem, 'text' | 'dueDate'>,
+  availableWidth: number,
+): number {
+  const approxCharsPerLine = Math.max(1, Math.floor(availableWidth / 8));
+  const lineCount = item.text.split('\n').reduce((count, line) => {
+    const length = Math.max(line.length, 1);
+    return count + Math.max(1, Math.ceil(length / approxCharsPerLine));
+  }, 0);
+  return (
+    Math.max(CHECKLIST_ROW_BASE_HEIGHT, lineCount * 22) +
+    (item.dueDate ? CHECKLIST_DUE_DATE_HEIGHT : 0)
+  );
+}
+
+export function checklistItemRichHtml(item: NoteChecklistItem): string {
+  return item.richTextHtml ?? plainTextToRichHtml(item.text);
+}
+
+export function checklistItemPlainText(item: NoteChecklistItem): string {
+  return richHtmlToPlainText(checklistItemRichHtml(item));
+}
+
+export function isTextElement(element: NoteElement): element is NoteTextElement {
+  return element.type !== 'checklist';
+}
+
+export function isChecklistElement(element: NoteElement): element is NoteChecklistElement {
+  return element.type === 'checklist';
+}
+
+export function estimateNoteElementHeight(element: NoteElement): number {
+  return isChecklistElement(element)
+    ? estimateChecklistElementHeight(element)
+    : estimateTextElementHeight(element);
+}
+
+export function computeNoteViewBox(elements: NoteElement[]): string {
   const bounds = computeNoteContentBounds(elements);
   if (!bounds) {
     return DEFAULT_VIEWBOX;
@@ -96,7 +280,7 @@ export function computeNoteViewBox(elements: NoteTextElement[]): string {
   return `${bounds.minX - padding} ${bounds.minY - padding} ${bounds.width + padding * 2} ${bounds.height + padding * 2}`;
 }
 
-export function computeNoteContentBounds(elements: NoteTextElement[]): NoteContentBounds | null {
+export function computeNoteContentBounds(elements: NoteElement[]): NoteContentBounds | null {
   if (elements.length === 0) {
     return null;
   }
@@ -107,10 +291,10 @@ export function computeNoteContentBounds(elements: NoteTextElement[]): NoteConte
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (const element of elements) {
-    const height = estimateTextElementHeight(element);
-    const fontSize = resolveTextFontSize(element);
+    const height = estimateNoteElementHeight(element);
+    const fontSize = isTextElement(element) ? resolveTextFontSize(element) : 0;
     minX = Math.min(minX, element.x);
-    minY = Math.min(minY, element.y - fontSize);
+    minY = Math.min(minY, isTextElement(element) ? element.y - fontSize : element.y);
     maxX = Math.max(maxX, element.x + element.width);
     maxY = Math.max(maxY, element.y + height);
   }

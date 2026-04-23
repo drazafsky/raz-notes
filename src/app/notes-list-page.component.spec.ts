@@ -185,4 +185,67 @@ describe('NotesListPageComponent', () => {
       openLink?.nativeElement.getAttribute('href'),
     );
   });
+
+  it('renders checklist previews with nesting and due dates', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.notes.set([
+      {
+        id: 1,
+        title: 'Checklist',
+        elements: [
+          {
+            id: 'c1',
+            type: 'checklist',
+            x: 0,
+            y: 0,
+            width: 260,
+            items: [
+              {
+                id: 'i1',
+                text: 'Parent task',
+                richTextHtml: '<strong>Parent</strong> task',
+                state: 'partial',
+                dueDate: '2026-05-01',
+                children: [
+                  {
+                    id: 'i2',
+                    text: 'Child task',
+                    richTextHtml: 'Child task',
+                    state: 'unchecked',
+                    children: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T01:00:00.000Z',
+        attachments: [],
+      },
+    ]);
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).toContain('Parent task');
+    expect(fixture.nativeElement.textContent).toContain('Child task');
+    expect(fixture.nativeElement.textContent).toContain('Due 2026-05-01');
+    expect(fixture.nativeElement.textContent).toContain('◩');
+  });
 });

@@ -5,14 +5,24 @@ import { RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
+  ChecklistLayoutRow,
   computeNoteViewBox,
   DEFAULT_TEXT_FONT_FAMILY,
-  estimateTextElementHeight,
+  estimateNoteElementHeight,
+  isChecklistElement,
+  isTextElement,
+  layoutChecklistRows,
 } from './note-svg.utils';
 import { plainTextToRichHtml } from './rich-text.utils';
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
-import { Note, NoteTextElement } from './storage.service';
+import {
+  Note,
+  NoteChecklistElement,
+  NoteChecklistItem,
+  NoteElement,
+  NoteTextElement,
+} from './storage.service';
 
 @Component({
   selector: 'app-notes-list-page',
@@ -65,8 +75,8 @@ export class NotesListPageComponent {
     return computeNoteViewBox(note.elements);
   }
 
-  estimateElementHeight(element: NoteTextElement): number {
-    return estimateTextElementHeight(element);
+  estimateElementHeight(element: NoteElement): number {
+    return estimateNoteElementHeight(element);
   }
 
   richTextHtmlFor(element: NoteTextElement): string {
@@ -87,5 +97,36 @@ export class NotesListPageComponent {
 
   textColorFor(element: NoteTextElement): string {
     return element.color ?? 'rgb(var(--theme-text) / 1)';
+  }
+
+  isTextElement(element: NoteElement): element is NoteTextElement {
+    return isTextElement(element);
+  }
+
+  isChecklistElement(element: NoteElement): element is NoteChecklistElement {
+    return isChecklistElement(element);
+  }
+
+  checklistRowsFor(element: NoteChecklistElement): ChecklistLayoutRow[] {
+    return layoutChecklistRows(element);
+  }
+
+  checklistItemHtml(item: NoteChecklistItem): string {
+    return item.richTextHtml ?? plainTextToRichHtml(item.text);
+  }
+
+  trustedChecklistItemHtml(item: NoteChecklistItem): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(this.checklistItemHtml(item));
+  }
+
+  checklistStateSymbol(state: NoteChecklistItem['state']): string {
+    switch (state) {
+      case 'checked':
+        return '☑';
+      case 'partial':
+        return '◩';
+      default:
+        return '☐';
+    }
   }
 }

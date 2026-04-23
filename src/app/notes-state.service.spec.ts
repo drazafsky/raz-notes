@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
-import { Note, StorageService } from './storage.service';
+import { Note, NoteTextElement, StorageService } from './storage.service';
 
 describe('NotesStateService', () => {
   let service: NotesStateService;
@@ -81,8 +81,8 @@ describe('NotesStateService', () => {
       elements: [{ id: 't2', text: 'Updated', x: 10, y: 20, width: 220, fontSize: 28 }],
     });
 
-    expect(updated.elements[0].text).toBe('Updated');
-    expect(updated.elements[0].fontSize).toBe(28);
+    expect((updated.elements[0] as NoteTextElement).text).toBe('Updated');
+    expect((updated.elements[0] as NoteTextElement).fontSize).toBe(28);
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
     expect(auth.recordActivity).toHaveBeenCalled();

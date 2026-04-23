@@ -4,7 +4,7 @@ import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { NoteDetailsPageComponent } from './note-details-page.component';
 import { computeNoteContentBounds } from './note-svg.utils';
 import { NotesStateService } from './notes-state.service';
-import { Note, StorageService } from './storage.service';
+import { Note, NoteTextElement, StorageService } from './storage.service';
 
 class MockNotesStateService {
   updateError: Error | null = null;
@@ -92,7 +92,7 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(fixture.componentInstance.activeTool).toBe('selection');
     expect(fixture.componentInstance.noteTitle).toBe('Existing note');
-    expect(fixture.componentInstance.elements[0].text).toBe('Saved body');
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).text).toBe('Saved body');
     expect(fixture.componentInstance.scale).toBeCloseTo(expectedScale);
     expect(fixture.componentInstance.viewX).toBeCloseTo(400 - bounds.centerX * expectedScale);
     expect(fixture.componentInstance.viewY).toBeCloseTo(300 - bounds.centerY * expectedScale);
@@ -308,7 +308,7 @@ describe('NoteDetailsPageComponent', () => {
     );
     fixture.componentInstance.updateEditingText('t1', 'Line 1\nLine 2');
 
-    expect(fixture.componentInstance.elements[0].text).toBe('Line 1\nLine 2');
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).text).toBe('Line 1\nLine 2');
   });
 
   it('preserves rich text formatting when the element is not being edited', async () => {
@@ -392,14 +392,14 @@ describe('NoteDetailsPageComponent', () => {
     expect(fontFamilyControl.options.length).toBeGreaterThan(3);
     expect(fontSizeControl.options.length).toBeGreaterThan(10);
     expect(quickColorButtons.length).toBeGreaterThan(3);
-    expect(fixture.componentInstance.elements[0].fontSize).toBe(32);
-    expect(fixture.componentInstance.elements[0].color).toBe('#ff0000');
-    expect(fixture.componentInstance.elements[0].fontFamily).toBe(
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).fontSize).toBe(32);
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).color).toBe('#ff0000');
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).fontFamily).toBe(
       fixture.componentInstance.fontFamilyOptions[1].value,
     );
-    expect(fixture.componentInstance.elements[0].bold).toBeTrue();
-    expect(fixture.componentInstance.elements[0].italic).toBeTrue();
-    expect(fixture.componentInstance.elements[0].underline).toBeTrue();
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).bold).toBeTrue();
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).italic).toBeTrue();
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).underline).toBeTrue();
     expect(textNode.style.fontSize).toBe('32px');
     expect(textNode.style.fontWeight).toBe('700');
     expect(textNode.style.fontStyle).toBe('italic');
@@ -423,11 +423,11 @@ describe('NoteDetailsPageComponent', () => {
       clientY: 42,
     } as PointerEvent);
 
-    expect(fixture.componentInstance.elements[0].width).toBeGreaterThan(180);
-    expect(fixture.componentInstance.elements[0].height).toBeGreaterThan(
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).width).toBeGreaterThan(180);
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).height).toBeGreaterThan(
       fixture.componentInstance.textFontSize * 1.6,
     );
-    expect(fixture.componentInstance.elements[0].fontSize).toBe(
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).fontSize).toBe(
       fixture.componentInstance.textFontSize,
     );
   });
@@ -514,6 +514,163 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.selectedElementId).toBe('t1');
   });
 
+  it('creates and immediately edits a checklist element from the canvas toolbar', async () => {
+    const fixture = await createComponent();
+    const initialCount = fixture.componentInstance.elements.length;
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      type: 'checklist';
+      items: { id: string }[];
+    };
+
+    expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
+    expect(checklist.type).toBe('checklist');
+    expect(fixture.componentInstance.activeTool).toBe('selection');
+    expect(fixture.componentInstance.selectedElementId).toBe(checklist.id);
+    expect(fixture.componentInstance.selectedChecklistItemId).toBe(checklist.items[0].id);
+    expect(
+      fixture.nativeElement.querySelector(
+        `#${fixture.componentInstance.checklistEditorId(checklist.id, checklist.items[0].id)}`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('adds checklist sibling and child items with Enter and Tab', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; children: { id: string }[] }[];
+    };
+    const rootItemId = checklist.items[0].id;
+    const preventDefault = jasmine.createSpy('preventDefault');
+
+    fixture.componentInstance.onChecklistItemKeyDown(
+      { key: 'Enter', preventDefault } as unknown as KeyboardEvent,
+      checklist.id,
+      rootItemId,
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const withSibling = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; children: { id: string }[] }[];
+    };
+    const siblingId = withSibling.items[1].id;
+
+    fixture.componentInstance.onChecklistItemKeyDown(
+      { key: 'Tab', preventDefault } as unknown as KeyboardEvent,
+      checklist.id,
+      siblingId,
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const withChild = fixture.componentInstance.elements.at(-1) as {
+      items: { id: string; children: { id: string }[] }[];
+    };
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(withSibling.items.length).toBe(2);
+    expect(withChild.items[1].children.length).toBe(1);
+    expect(fixture.componentInstance.selectedChecklistItemId).toBe(
+      withChild.items[1].children[0].id,
+    );
+    const childEditorId = fixture.componentInstance.checklistEditorId(
+      checklist.id,
+      withChild.items[1].children[0].id,
+    );
+    expect(document.activeElement?.id).toBe(childEditorId);
+    expect(fixture.nativeElement.querySelector(`#${childEditorId}`)).toBeTruthy();
+  });
+
+  it('updates checklist item state and due date from checklist controls', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string; state: string; dueDate?: string }[];
+    };
+    const itemId = checklist.items[0].id;
+
+    fixture.componentInstance.cycleChecklistItemState(checklist.id, itemId);
+    fixture.componentInstance.updateActiveChecklistDueDate('2026-05-01');
+    fixture.detectChanges();
+
+    const updatedChecklist = fixture.componentInstance.elements.at(-1) as {
+      items: { state: string; dueDate?: string }[];
+    };
+
+    expect(updatedChecklist.items[0].state).toBe('partial');
+    expect(updatedChecklist.items[0].dueDate).toBe('2026-05-01');
+    expect(fixture.nativeElement.textContent).toContain('Clear date');
+  });
+
+  it('renders checklist bodies with a transparent background', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklistContainer = fixture.nativeElement.querySelector(
+      'foreignObject div.h-full.w-full.rounded',
+    ) as HTMLDivElement;
+
+    expect(checklistContainer.className).toContain('bg-transparent');
+    expect(checklistContainer.className).not.toContain('bg-theme-bg/95');
+  });
+
   it('removes external text configuration inputs from the editor layout', async () => {
     const fixture = await createComponent();
     fixture.componentInstance.selectedElementId = 't1';
@@ -530,6 +687,7 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(fixture.nativeElement.querySelector('button[aria-label="Selection tool"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('button[aria-label="Text tool"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('button[aria-label="Checklist tool"]')).toBeTruthy();
     expect(centerCanvasButton).toBeTruthy();
     expect(zoomOutButton).toBeTruthy();
     expect(canvasGrid?.parentElement?.tagName.toLowerCase()).toBe('g');

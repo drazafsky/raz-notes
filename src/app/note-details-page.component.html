@@ -112,6 +112,20 @@
         >
           <i class="fa-solid fa-font" aria-hidden="true"></i>
         </button>
+        <button
+          type="button"
+          (click)="setActiveTool('checklist')"
+          aria-label="Checklist tool"
+          title="Checklist tool"
+          class="inline-flex h-10 w-10 items-center justify-center rounded border focus:outline-none focus:ring-2 focus:ring-theme-accent"
+          [class.border-theme-accent]="activeTool === 'checklist'"
+          [class.bg-theme-brand-soft]="activeTool === 'checklist'"
+          [class.text-theme-accent]="activeTool === 'checklist'"
+          [class.border-theme-border]="activeTool !== 'checklist'"
+          [class.text-theme-text]="activeTool !== 'checklist'"
+        >
+          <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+        </button>
       </div>
 
       <div class="relative">
@@ -163,7 +177,7 @@
             />
             @for (element of elements; track element.id) {
               <g>
-                @if (selectedElementId === element.id) {
+                @if (selectedElementId === element.id && isTextElement(element)) {
                   <foreignObject
                     [attr.x]="element.x - 8"
                     [attr.y]="textToolbarY(element)"
@@ -301,9 +315,108 @@
                     </div>
                   </foreignObject>
                 }
+                @if (selectedElementId === element.id && isChecklistElement(element)) {
+                  <foreignObject
+                    [attr.x]="element.x - 8"
+                    [attr.y]="checklistToolbarY(element)"
+                    [attr.width]="checklistToolbarWidth"
+                    [attr.height]="checklistToolbarHeight"
+                  >
+                    <div
+                      xmlns="http://www.w3.org/1999/xhtml"
+                      data-checklist-toolbar="true"
+                      class="flex h-full items-center gap-1 rounded-lg border border-theme-border bg-theme-surface px-2 py-1 shadow-lg shadow-theme-brand/15"
+                      (pointerdown)="$event.stopPropagation()"
+                    >
+                      <button
+                        type="button"
+                        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+                        [disabled]="!selectedChecklistItemId"
+                        (click)="addChecklistSiblingFromToolbar()"
+                      >
+                        Add sibling
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+                        [disabled]="!selectedChecklistItemId"
+                        (click)="addChecklistChildFromToolbar()"
+                      >
+                        Add child
+                      </button>
+                      <label class="sr-only" [for]="'checklist-due-date-' + element.id"
+                        >Due date</label
+                      >
+                      <input
+                        [id]="'checklist-due-date-' + element.id"
+                        [name]="'checklist-due-date-' + element.id"
+                        type="date"
+                        [ngModel]="activeChecklistDueDate()"
+                        (ngModelChange)="updateActiveChecklistDueDate($event)"
+                        class="h-8 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+                      />
+                      <button
+                        type="button"
+                        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+                        [disabled]="!activeChecklistDueDate()"
+                        (click)="clearActiveChecklistDueDate()"
+                      >
+                        Clear date
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist bold"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm font-bold text-theme-text"
+                        (click)="applyChecklistInlineCommand('bold')"
+                      >
+                        B
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist italic"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm italic text-theme-text"
+                        (click)="applyChecklistInlineCommand('italic')"
+                      >
+                        I
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist underline"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm underline text-theme-text"
+                        (click)="applyChecklistInlineCommand('underline')"
+                      >
+                        U
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist strikethrough"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm line-through text-theme-text"
+                        (click)="applyChecklistInlineCommand('strikeThrough')"
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist subscript"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                        (click)="applyChecklistInlineCommand('subscript')"
+                      >
+                        X<sub>2</sub>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Checklist superscript"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                        (click)="applyChecklistInlineCommand('superscript')"
+                      >
+                        X<sup>2</sup>
+                      </button>
+                    </div>
+                  </foreignObject>
+                }
                 <rect
                   [attr.x]="element.x - 12"
-                  [attr.y]="element.y - fontSizeFor(element) - 10"
+                  [attr.y]="elementContentTop(element) - 10"
                   [attr.width]="element.width + 24"
                   [attr.height]="estimateElementHeight(element) + 20"
                   rx="12"
@@ -315,51 +428,146 @@
                   (pointerdown)="onTextPointerDown($event, element.id)"
                   (dblclick)="onTextDoubleClick($event, element.id)"
                 />
-                <foreignObject
-                  [attr.x]="element.x"
-                  [attr.y]="element.y - fontSizeFor(element)"
-                  [attr.width]="element.width"
-                  [attr.height]="estimateElementHeight(element)"
-                >
-                  @if (editingElementId === element.id) {
+                @if (isTextElement(element)) {
+                  <foreignObject
+                    [attr.x]="element.x"
+                    [attr.y]="element.y - fontSizeFor(element)"
+                    [attr.width]="element.width"
+                    [attr.height]="estimateElementHeight(element)"
+                  >
+                    @if (editingElementId === element.id) {
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        [id]="inlineEditorId(element.id)"
+                        contenteditable="true"
+                        role="textbox"
+                        aria-multiline="true"
+                        (input)="onInlineEditorInput(element.id, $event)"
+                        (keydown)="onInlineEditorKeyDown($event)"
+                        (pointerdown)="onInlineEditorPointerDown($event, element.id)"
+                        (focus)="onInlineEditorFocus(element.id, $event)"
+                        (blur)="stopEditingElement($event)"
+                        class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
+                        [style.color]="textColorFor(element)"
+                        [style.fontFamily]="fontFamilyFor(element)"
+                        [style.fontSize.px]="fontSizeFor(element)"
+                        [style.lineHeight]="1.35"
+                        [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+                        [style.fontWeight]="element.bold ? '700' : '400'"
+                        [style.textDecoration]="element.underline ? 'underline' : 'none'"
+                      ></div>
+                    } @else {
+                      <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        class="select-none whitespace-pre-wrap break-words text-theme-text"
+                        [style.color]="textColorFor(element)"
+                        [style.fontFamily]="fontFamilyFor(element)"
+                        [style.fontSize.px]="fontSizeFor(element)"
+                        [style.lineHeight]="1.35"
+                        [style.cursor]="activeTool === 'selection' ? 'move' : 'default'"
+                        [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+                        [style.fontWeight]="element.bold ? '700' : '400'"
+                        [style.textDecoration]="element.underline ? 'underline' : 'none'"
+                        (pointerdown)="onTextPointerDown($event, element.id)"
+                        (dblclick)="onTextDoubleClick($event, element.id)"
+                        [innerHTML]="trustedRichTextHtmlFor(element)"
+                      ></div>
+                    }
+                  </foreignObject>
+                } @else if (isChecklistElement(element)) {
+                  <foreignObject
+                    [attr.x]="element.x"
+                    [attr.y]="element.y"
+                    [attr.width]="element.width"
+                    [attr.height]="estimateElementHeight(element)"
+                  >
                     <div
                       xmlns="http://www.w3.org/1999/xhtml"
-                      [id]="inlineEditorId(element.id)"
-                      contenteditable="true"
-                      role="textbox"
-                      aria-multiline="true"
-                      (input)="onInlineEditorInput(element.id, $event)"
-                      (keydown)="onInlineEditorKeyDown($event)"
-                      (pointerdown)="onInlineEditorPointerDown($event, element.id)"
-                      (focus)="onInlineEditorFocus(element.id, $event)"
-                      (blur)="stopEditingElement($event)"
-                      class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
-                      [style.color]="textColorFor(element)"
-                      [style.fontFamily]="fontFamilyFor(element)"
-                      [style.fontSize.px]="fontSizeFor(element)"
-                      [style.lineHeight]="1.35"
-                      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
-                      [style.fontWeight]="element.bold ? '700' : '400'"
-                      [style.textDecoration]="element.underline ? 'underline' : 'none'"
-                    ></div>
-                  } @else {
-                    <div
-                      xmlns="http://www.w3.org/1999/xhtml"
-                      class="select-none whitespace-pre-wrap break-words text-theme-text"
-                      [style.color]="textColorFor(element)"
-                      [style.fontFamily]="fontFamilyFor(element)"
-                      [style.fontSize.px]="fontSizeFor(element)"
-                      [style.lineHeight]="1.35"
-                      [style.cursor]="activeTool === 'selection' ? 'move' : 'default'"
-                      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
-                      [style.fontWeight]="element.bold ? '700' : '400'"
-                      [style.textDecoration]="element.underline ? 'underline' : 'none'"
-                      (pointerdown)="onTextPointerDown($event, element.id)"
-                      (dblclick)="onTextDoubleClick($event, element.id)"
-                      [innerHTML]="trustedRichTextHtmlFor(element)"
-                    ></div>
-                  }
-                </foreignObject>
+                      class="h-full w-full rounded border border-transparent bg-transparent px-3 py-2 text-sm text-theme-text"
+                      (pointerdown)="$event.stopPropagation()"
+                    >
+                      <div class="flex flex-col gap-1">
+                        @for (row of checklistRowsFor(element); track row.item.id) {
+                          <div
+                            class="rounded-md border px-2 py-1"
+                            [style.marginLeft.px]="row.depth * checklistIndentPx"
+                            [class.border-theme-accent]="
+                              checklistItemIsSelected(element.id, row.item.id)
+                            "
+                            [class.bg-theme-brand-soft]="
+                              checklistItemIsSelected(element.id, row.item.id)
+                            "
+                            [class.border-transparent]="
+                              !checklistItemIsSelected(element.id, row.item.id)
+                            "
+                          >
+                            <div class="flex items-start gap-2">
+                              <button
+                                type="button"
+                                aria-label="Reorder checklist item"
+                                class="mt-1 inline-flex h-7 w-7 items-center justify-center rounded border border-theme-border text-theme-muted"
+                                (pointerdown)="
+                                  onChecklistReorderHandlePointerDown(
+                                    $event,
+                                    element.id,
+                                    row.item.id
+                                  )
+                                "
+                              >
+                                <i class="fa-solid fa-grip-lines" aria-hidden="true"></i>
+                              </button>
+                              <button
+                                type="button"
+                                [attr.aria-label]="checklistStateLabel(row.item.state)"
+                                class="mt-1 inline-flex h-7 w-7 items-center justify-center rounded border border-theme-border text-theme-text"
+                                (click)="cycleChecklistItemState(element.id, row.item.id)"
+                              >
+                                <span aria-hidden="true">{{
+                                  checklistStateSymbol(row.item.state)
+                                }}</span>
+                              </button>
+                              <div class="min-w-0 flex-1">
+                                @if (checklistItemIsEditing(element.id, row.item.id)) {
+                                  <div
+                                    xmlns="http://www.w3.org/1999/xhtml"
+                                    [id]="checklistEditorId(element.id, row.item.id)"
+                                    contenteditable="true"
+                                    role="textbox"
+                                    aria-multiline="true"
+                                    class="min-h-8 w-full whitespace-pre-wrap break-words rounded border border-theme-accent bg-theme-surface px-2 py-1 outline-none"
+                                    [class.line-through]="row.item.state === 'checked'"
+                                    (input)="onChecklistItemInput(element.id, row.item.id, $event)"
+                                    (keydown)="
+                                      onChecklistItemKeyDown($event, element.id, row.item.id)
+                                    "
+                                    (focus)="onChecklistItemFocus(element.id, row.item.id)"
+                                    (blur)="stopChecklistItemEditing($event)"
+                                    (pointerdown)="$event.stopPropagation()"
+                                  ></div>
+                                } @else {
+                                  <div
+                                    xmlns="http://www.w3.org/1999/xhtml"
+                                    class="min-h-8 whitespace-pre-wrap break-words rounded px-2 py-1"
+                                    [class.line-through]="row.item.state === 'checked'"
+                                    (pointerdown)="
+                                      onChecklistItemPointerDown($event, element.id, row.item.id)
+                                    "
+                                    [innerHTML]="trustedChecklistItemHtml(row.item)"
+                                  ></div>
+                                }
+                                @if (row.item.dueDate) {
+                                  <div class="px-2 pb-1 text-xs text-theme-muted">
+                                    Due {{ row.item.dueDate }}
+                                  </div>
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </foreignObject>
+                }
                 @if (selectedElementId === element.id && activeTool === 'selection') {
                   <circle
                     [attr.cx]="element.x + element.width + 12"

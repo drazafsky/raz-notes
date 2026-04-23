@@ -15,18 +15,32 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
+  CHECKLIST_INDENT_PX,
+  ChecklistLayoutRow,
   computeNoteContentBounds,
+  createChecklistItem,
   DEFAULT_TEXT_ELEMENT_WIDTH,
   DEFAULT_TEXT_FONT_FAMILY,
   DEFAULT_TEXT_FONT_SIZE,
-  estimateTextElementHeight,
+  estimateNoteElementHeight,
+  isChecklistElement,
+  isTextElement,
+  layoutChecklistRows,
+  normalizeChecklistElement,
   normalizeNoteTextElement,
 } from './note-svg.utils';
 import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
-import { Note, NoteTextElement } from './storage.service';
+import {
+  ChecklistItemState,
+  Note,
+  NoteChecklistElement,
+  NoteChecklistItem,
+  NoteElement,
+  NoteTextElement,
+} from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
-type CanvasTool = 'selection' | 'text';
+type CanvasTool = 'selection' | 'text' | 'checklist';
 interface FontOption {
   label: string;
   value: string;
@@ -39,6 +53,19 @@ interface SaveNotification {
 type QueryLocalFontsWindow = Window & {
   queryLocalFonts?: () => Promise<{ family: string }[]>;
 };
+interface ChecklistItemLocation {
+  item: NoteChecklistItem;
+  parentId: string | null;
+  index: number;
+  depth: number;
+}
+interface ChecklistReorderState {
+  elementId: string;
+  itemId: string;
+  parentId: string | null;
+  startIndex: number;
+  startItems: NoteChecklistItem[];
+}
 
 const FALLBACK_FONT_FAMILIES = [
   'Arial',
@@ -77,6 +104,7 @@ const MIN_CANVAS_SCALE = 0.25;
 const MAX_CANVAS_SCALE = 6;
 const FIT_CONTENT_PADDING = 72;
 const SAVE_NOTIFICATION_DURATION_MS = 3000;
+const CHECKLIST_REORDER_STEP_PX = 36;
 
 @Component({
   selector: 'app-note-details-page',
@@ -95,12 +123,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   saveNotification: SaveNotification | null = null;
   isNewNote = false;
   noteTitle = '';
-  elements: NoteTextElement[] = [];
+  elements: NoteElement[] = [];
   readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
   readonly defaultTextFontFamily = DEFAULT_TEXT_FONT_FAMILY;
   readonly defaultTextColor = '#111827';
   readonly textToolbarWidth = 760;
   readonly textToolbarHeight = 48;
+  readonly checklistToolbarWidth = 620;
+  readonly checklistToolbarHeight = 48;
+  readonly checklistIndentPx = CHECKLIST_INDENT_PX;
   readonly fontSizeOptions = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 60, 72, 96];
   fontFamilyOptions: FontOption[] = FALLBACK_FONT_FAMILIES.map((family) => ({
     label: family,
@@ -110,6 +141,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   pendingFiles: File[] = [];
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
+  selectedChecklistItemId: string | null = null;
+  editingChecklistItemId: string | null = null;
   activeTool: CanvasTool = 'selection';
   private pendingEditorSelection: 'all' | 'end' | null = null;
   viewX = 480;
@@ -119,7 +152,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('svgHost') svgHostRef?: ElementRef<SVGSVGElement>;
 
-  private interactionMode: 'none' | 'canvas' | 'drag' | 'resize' = 'none';
+  private interactionMode: 'none' | 'canvas' | 'drag' | 'resize' | 'checklist-reorder' = 'none';
   private interactionMoved = false;
   private activeElementId: string | null = null;
   private pointerStart = { x: 0, y: 0 };
@@ -128,6 +161,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private editorSelectionRange: Range | null = null;
   private readonly colorUsage = new Map<string, number>();
   private saveNotificationTimeoutId: number | null = null;
+  private checklistReorderState: ChecklistReorderState | null = null;
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -147,8 +181,9 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
     this.note = note;
     this.noteTitle = note.title;
-    this.elements = note.elements.map((element) => ({ ...element }));
+    this.elements = note.elements.map((element) => this.cloneElement(element));
     this.selectedElementId = this.elements[0]?.id ?? null;
+    this.ensureChecklistItemSelection();
     this.initializeColorUsage();
     this.showPendingNavigationSaveSuccess();
   }
@@ -179,7 +214,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.elements.length === 0) {
-      this.showSaveError('Add at least one text item to the note.');
+      this.showSaveError('Add at least one canvas item to the note.');
       return;
     }
 
@@ -268,6 +303,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     this.selectedElementId = elementId;
+    if (isChecklistElement(element)) {
+      this.selectedChecklistItemId =
+        this.selectedChecklistItemId &&
+        this.findChecklistItemLocation(elementId, this.selectedChecklistItemId)
+          ? this.selectedChecklistItemId
+          : (element.items[0]?.id ?? null);
+      this.editingChecklistItemId = null;
+      this.editingElementId = null;
+    } else {
+      this.selectedChecklistItemId = null;
+    }
     this.activeElementId = elementId;
     this.interactionMode = 'drag';
     this.interactionMoved = false;
@@ -300,6 +346,9 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
     event.stopPropagation();
     this.selectedElementId = elementId;
+    this.selectedChecklistItemId = isChecklistElement(element)
+      ? (element.items[0]?.id ?? null)
+      : null;
     this.activeElementId = elementId;
     this.interactionMode = 'resize';
     this.interactionMoved = false;
@@ -347,23 +396,46 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (this.interactionMode === 'checklist-reorder') {
+      this.reorderChecklistItemFromPointer(event.clientY - this.pointerStart.y);
+      return;
+    }
+
     const element = this.activeElementId ? this.getElement(this.activeElementId) : null;
     if (!element) {
       return;
     }
 
     if (this.interactionMode === 'drag') {
-      this.updateElement(element.id, {
-        x: this.elementStart.x + dx / this.scale,
-        y: this.elementStart.y + dy / this.scale,
-      });
+      this.updateElement(element.id, (currentElement) =>
+        isChecklistElement(currentElement)
+          ? normalizeChecklistElement({
+              ...currentElement,
+              x: this.elementStart.x + dx / this.scale,
+              y: this.elementStart.y + dy / this.scale,
+            })
+          : normalizeNoteTextElement({
+              ...currentElement,
+              x: this.elementStart.x + dx / this.scale,
+              y: this.elementStart.y + dy / this.scale,
+            }),
+      );
       return;
     }
 
-    this.updateElement(element.id, {
-      width: Math.max(100, this.elementStart.width + dx / this.scale),
-      height: Math.max(48, this.elementStart.height + dy / this.scale),
-    });
+    this.updateElement(element.id, (currentElement) =>
+      isChecklistElement(currentElement)
+        ? normalizeChecklistElement({
+            ...currentElement,
+            width: Math.max(180, this.elementStart.width + dx / this.scale),
+            height: Math.max(72, this.elementStart.height + dy / this.scale),
+          })
+        : normalizeNoteTextElement({
+            ...currentElement,
+            width: Math.max(100, this.elementStart.width + dx / this.scale),
+            height: Math.max(48, this.elementStart.height + dy / this.scale),
+          }),
+    );
   }
 
   @HostListener('document:pointerup', ['$event'])
@@ -372,9 +444,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       if (this.activeTool === 'text') {
         const point = this.pointerToCanvas(event);
         this.addTextElement(point.x, point.y);
+      } else if (this.activeTool === 'checklist') {
+        const point = this.pointerToCanvas(event);
+        this.addChecklistElement(point.x, point.y);
       } else {
         this.selectedElementId = null;
         this.editingElementId = null;
+        this.selectedChecklistItemId = null;
+        this.editingChecklistItemId = null;
       }
     } else if (
       this.interactionMode === 'drag' &&
@@ -382,12 +459,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       this.activeTool === 'selection' &&
       this.activeElementId
     ) {
-      this.startEditingElement(this.activeElementId);
+      if (this.isTextElementById(this.activeElementId)) {
+        this.startEditingElement(this.activeElementId);
+      }
     }
 
     this.interactionMode = 'none';
     this.activeElementId = null;
     this.interactionMoved = false;
+    this.checklistReorderState = null;
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -415,8 +495,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  estimateElementHeight(element: NoteTextElement): number {
-    return estimateTextElementHeight(element);
+  estimateElementHeight(element: NoteElement): number {
+    return estimateNoteElementHeight(element);
   }
 
   richTextHtmlFor(element: NoteTextElement): string {
@@ -452,6 +532,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return element.y - this.fontSizeFor(element) - this.textToolbarHeight - 18;
   }
 
+  checklistToolbarY(element: NoteChecklistElement): number {
+    return element.y - this.checklistToolbarHeight - 18;
+  }
+
   centerCanvas(): void {
     const rect = this.getSvgHostRect();
     if (!rect) {
@@ -469,8 +553,20 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.applyZoomToFitView(rect, Math.min(this.scale, this.fitScaleForRect(rect)));
   }
 
-  selectedElement(): NoteTextElement | null {
+  selectedElement(): NoteElement | null {
     return this.selectedElementId ? (this.getElement(this.selectedElementId) ?? null) : null;
+  }
+
+  isTextElement(element: NoteElement): element is NoteTextElement {
+    return isTextElement(element);
+  }
+
+  isChecklistElement(element: NoteElement): element is NoteChecklistElement {
+    return isChecklistElement(element);
+  }
+
+  elementContentTop(element: NoteElement): number {
+    return isTextElement(element) ? element.y - this.fontSizeFor(element) : element.y;
   }
 
   dismissSaveNotification(): void {
@@ -482,12 +578,13 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.activeTool = tool;
     if (tool !== 'selection') {
       this.editingElementId = null;
+      this.editingChecklistItemId = null;
       this.editorSelectionRange = null;
     }
   }
 
   updateEditingText(elementId: string, text: string): void {
-    this.updateElement(elementId, { text, richTextHtml: plainTextToRichHtml(text) });
+    this.updateTextElement(elementId, { text, richTextHtml: plainTextToRichHtml(text) });
   }
 
   updateTextStyle(elementId: string, patch: Partial<NoteTextElement>): void {
@@ -503,7 +600,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     });
 
     if (!applied) {
-      this.updateElement(elementId, patch);
+      this.updateTextElement(elementId, patch);
     }
   }
 
@@ -519,12 +616,12 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     );
 
     if (!applied) {
-      this.updateElement(elementId, { fontSize: nextFontSize });
+      this.updateTextElement(elementId, { fontSize: nextFontSize });
     }
   }
 
   toggleTextFormat(elementId: string, format: 'bold' | 'italic' | 'underline'): void {
-    const element = this.getElement(elementId);
+    const element = this.getTextElement(elementId);
     if (!element) {
       return;
     }
@@ -532,17 +629,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     switch (format) {
       case 'bold':
         if (!this.applyCommandToSelection(elementId, 'bold')) {
-          this.updateElement(elementId, { bold: !element.bold });
+          this.updateTextElement(elementId, { bold: !element.bold });
         }
         return;
       case 'italic':
         if (!this.applyCommandToSelection(elementId, 'italic')) {
-          this.updateElement(elementId, { italic: !element.italic });
+          this.updateTextElement(elementId, { italic: !element.italic });
         }
         return;
       case 'underline':
         if (!this.applyCommandToSelection(elementId, 'underline')) {
-          this.updateElement(elementId, { underline: !element.underline });
+          this.updateTextElement(elementId, { underline: !element.underline });
         }
         return;
     }
@@ -567,6 +664,22 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.activeTool = 'selection';
     this.selectedElementId = element.id;
     this.startEditingElement(element.id, 'all');
+  }
+
+  private addChecklistElement(x: number, y: number): void {
+    const element = normalizeChecklistElement({
+      id: crypto.randomUUID(),
+      type: 'checklist',
+      x,
+      y,
+      items: [createChecklistItem('Checklist item')],
+    });
+    this.elements = [...this.elements, element];
+    this.syncNoteElements();
+    this.activeTool = 'selection';
+    this.selectedElementId = element.id;
+    this.selectedChecklistItemId = element.items[0]?.id ?? null;
+    this.startEditingChecklistItem(element.id, element.items[0]?.id ?? null, 'all');
   }
 
   onInlineEditorPointerDown(event: PointerEvent, elementId: string): void {
@@ -605,7 +718,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   stopEditingElement(event?: FocusEvent): void {
     const nextTarget = event?.relatedTarget;
-    if (nextTarget instanceof HTMLElement && nextTarget.closest('[data-text-toolbar="true"]')) {
+    if (
+      nextTarget instanceof HTMLElement &&
+      nextTarget.closest('[data-text-toolbar="true"], [data-checklist-toolbar="true"]')
+    ) {
       return;
     }
 
@@ -614,10 +730,30 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.editorSelectionRange = null;
   }
 
-  private updateElement(elementId: string, patch: Partial<NoteTextElement>): void {
+  private updateElement(elementId: string, updater: (element: NoteElement) => NoteElement): void {
     this.elements = this.elements.map((element) =>
-      element.id === elementId ? { ...element, ...patch } : element,
+      element.id === elementId ? updater(element) : element,
     );
+    this.syncNoteElements();
+  }
+
+  private updateTextElement(elementId: string, patch: Partial<NoteTextElement>): void {
+    this.updateElement(elementId, (element) =>
+      isTextElement(element) ? normalizeNoteTextElement({ ...element, ...patch }) : element,
+    );
+  }
+
+  private updateChecklistElement(
+    elementId: string,
+    updater: (element: NoteChecklistElement) => NoteChecklistElement,
+  ): void {
+    this.updateElement(elementId, (element) =>
+      isChecklistElement(element) ? normalizeChecklistElement(updater(element)) : element,
+    );
+  }
+
+  private syncNoteElements(): void {
+    this.ensureChecklistItemSelection();
     if (this.note) {
       this.note = {
         ...this.note,
@@ -633,30 +769,250 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     if (this.editingElementId === elementId) {
       this.editingElementId = null;
     }
-    if (this.note) {
-      this.note = {
-        ...this.note,
-        elements: this.elements,
-        lastModifiedAt: new Date().toISOString(),
-      };
+    if (this.selectedElementId !== elementId) {
+      this.ensureChecklistItemSelection();
+    } else {
+      this.selectedChecklistItemId = null;
+      this.editingChecklistItemId = null;
     }
+    this.syncNoteElements();
   }
 
-  private getElement(elementId: string): NoteTextElement | undefined {
+  private getElement(elementId: string): NoteElement | undefined {
     return this.elements.find((element) => element.id === elementId);
+  }
+
+  private getTextElement(elementId: string): NoteTextElement | undefined {
+    const element = this.getElement(elementId);
+    return element && isTextElement(element) ? element : undefined;
+  }
+
+  private getChecklistElement(elementId: string): NoteChecklistElement | undefined {
+    const element = this.getElement(elementId);
+    return element && isChecklistElement(element) ? element : undefined;
   }
 
   inlineEditorId(elementId: string): string {
     return `text-editor-${elementId}`;
   }
 
-  @HostListener('document:selectionchange')
-  onDocumentSelectionChange(): void {
-    if (!this.editingElementId) {
+  checklistEditorId(elementId: string, itemId: string): string {
+    return `checklist-editor-${elementId}-${itemId}`;
+  }
+
+  checklistRowsFor(element: NoteChecklistElement): ChecklistLayoutRow[] {
+    return layoutChecklistRows(element);
+  }
+
+  checklistItemHtml(item: NoteChecklistItem): string {
+    return item.richTextHtml ?? plainTextToRichHtml(item.text);
+  }
+
+  trustedChecklistItemHtml(item: NoteChecklistItem): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(this.checklistItemHtml(item));
+  }
+
+  checklistItemIsEditing(elementId: string, itemId: string): boolean {
+    return this.selectedElementId === elementId && this.editingChecklistItemId === itemId;
+  }
+
+  checklistItemIsSelected(elementId: string, itemId: string): boolean {
+    return this.selectedElementId === elementId && this.selectedChecklistItemId === itemId;
+  }
+
+  checklistStateSymbol(state: ChecklistItemState): string {
+    switch (state) {
+      case 'checked':
+        return '☑';
+      case 'partial':
+        return '◩';
+      default:
+        return '☐';
+    }
+  }
+
+  checklistStateLabel(state: ChecklistItemState): string {
+    switch (state) {
+      case 'checked':
+        return 'Checked';
+      case 'partial':
+        return 'Partially checked';
+      default:
+        return 'Unchecked';
+    }
+  }
+
+  activeChecklistItem(): NoteChecklistItem | null {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+      return null;
+    }
+
+    const location = this.findChecklistItemLocation(
+      this.selectedElementId,
+      this.selectedChecklistItemId,
+    );
+    return location?.item ?? null;
+  }
+
+  activeChecklistDueDate(): string {
+    return this.activeChecklistItem()?.dueDate ?? '';
+  }
+
+  addChecklistSiblingFromToolbar(): void {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
       return;
     }
 
-    const editor = this.getInlineEditorElement(this.editingElementId);
+    this.insertChecklistSibling(this.selectedElementId, this.selectedChecklistItemId);
+  }
+
+  addChecklistChildFromToolbar(): void {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+      return;
+    }
+
+    this.insertChecklistChild(this.selectedElementId, this.selectedChecklistItemId);
+  }
+
+  updateActiveChecklistDueDate(value: string): void {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+      return;
+    }
+
+    this.setChecklistItemDueDate(
+      this.selectedElementId,
+      this.selectedChecklistItemId,
+      value.trim() || undefined,
+    );
+  }
+
+  clearActiveChecklistDueDate(): void {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+      return;
+    }
+
+    this.setChecklistItemDueDate(this.selectedElementId, this.selectedChecklistItemId, undefined);
+  }
+
+  applyChecklistInlineCommand(
+    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
+  ): void {
+    if (!this.selectedElementId || !this.selectedChecklistItemId) {
+      return;
+    }
+
+    this.applyChecklistItemEditorCommand(
+      this.selectedElementId,
+      this.selectedChecklistItemId,
+      command,
+    );
+  }
+
+  onChecklistItemPointerDown(event: PointerEvent, elementId: string, itemId: string): void {
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.startEditingChecklistItem(elementId, itemId);
+  }
+
+  onChecklistItemInput(elementId: string, itemId: string, event: Event): void {
+    const target = event.target;
+    if (!(target instanceof HTMLDivElement)) {
+      return;
+    }
+
+    this.updateChecklistItemText(elementId, itemId, target.innerHTML);
+  }
+
+  onChecklistItemKeyDown(event: KeyboardEvent, elementId: string, itemId: string): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.insertChecklistSibling(elementId, itemId);
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      this.insertChecklistChild(elementId, itemId);
+    }
+  }
+
+  onChecklistItemFocus(elementId: string, itemId: string): void {
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.editingChecklistItemId = itemId;
+  }
+
+  stopChecklistItemEditing(event?: FocusEvent): void {
+    const nextTarget = event?.relatedTarget;
+    if (
+      nextTarget instanceof HTMLElement &&
+      nextTarget.closest('[data-checklist-toolbar="true"]')
+    ) {
+      return;
+    }
+
+    this.editingChecklistItemId = null;
+    this.pendingEditorSelection = null;
+    this.editorSelectionRange = null;
+  }
+
+  cycleChecklistItemState(elementId: string, itemId: string): void {
+    const item = this.findChecklistItemLocation(elementId, itemId)?.item;
+    if (!item) {
+      return;
+    }
+
+    const nextState: ChecklistItemState =
+      item.state === 'unchecked' ? 'partial' : item.state === 'partial' ? 'checked' : 'unchecked';
+    this.updateChecklistItem(elementId, itemId, (currentItem) => ({
+      ...currentItem,
+      state: nextState,
+    }));
+  }
+
+  onChecklistReorderHandlePointerDown(
+    event: PointerEvent,
+    elementId: string,
+    itemId: string,
+  ): void {
+    if (event.button !== 0 || this.activeTool !== 'selection') {
+      return;
+    }
+
+    const element = this.getChecklistElement(elementId);
+    const location = this.findChecklistItemLocation(elementId, itemId);
+    if (!element || !location) {
+      return;
+    }
+
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.interactionMode = 'checklist-reorder';
+    this.interactionMoved = false;
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.checklistReorderState = {
+      elementId,
+      itemId,
+      parentId: location.parentId,
+      startIndex: location.index,
+      startItems: this.cloneChecklistItems(element.items),
+    };
+  }
+
+  @HostListener('document:selectionchange')
+  onDocumentSelectionChange(): void {
+    const editor =
+      this.editingElementId !== null
+        ? this.getInlineEditorElement(this.editingElementId)
+        : this.selectedElementId && this.editingChecklistItemId
+          ? this.getChecklistEditorElement(this.selectedElementId, this.editingChecklistItemId)
+          : null;
+    if (!editor) {
+      return;
+    }
+
     const selection = window.getSelection();
     if (!editor || !selection || selection.rangeCount === 0) {
       return;
@@ -669,18 +1025,20 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private startEditingElement(elementId: string, selection: 'all' | 'end' = 'end'): void {
-    if (!this.getElement(elementId)) {
+    if (!this.getTextElement(elementId)) {
       return;
     }
 
     this.selectedElementId = elementId;
+    this.selectedChecklistItemId = null;
     this.editingElementId = elementId;
+    this.editingChecklistItemId = null;
     this.pendingEditorSelection = selection;
     queueMicrotask(() => {
       this.changeDetectorRef.detectChanges();
       const input = document.getElementById(this.inlineEditorId(elementId));
       if (input instanceof HTMLDivElement) {
-        const element = this.getElement(elementId);
+        const element = this.getTextElement(elementId);
         input.innerHTML = element ? this.richTextHtmlFor(element) : '';
         input.focus();
         this.applyPendingEditorSelection(input);
@@ -727,10 +1085,166 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private syncElementFromEditor(elementId: string, editor: HTMLDivElement): void {
-    this.updateElement(elementId, {
+    this.updateTextElement(elementId, {
       text: richHtmlToPlainText(editor.innerHTML),
       richTextHtml: editor.innerHTML,
     });
+  }
+
+  private getChecklistEditorElement(elementId: string, itemId: string): HTMLDivElement | null {
+    const editor = document.getElementById(this.checklistEditorId(elementId, itemId));
+    return editor instanceof HTMLDivElement ? editor : null;
+  }
+
+  private startEditingChecklistItem(
+    elementId: string,
+    itemId: string | null,
+    selection: 'all' | 'end' = 'end',
+  ): void {
+    if (!itemId || !this.findChecklistItemLocation(elementId, itemId)) {
+      return;
+    }
+
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.editingElementId = null;
+    this.editingChecklistItemId = itemId;
+    this.pendingEditorSelection = selection;
+    queueMicrotask(() => {
+      this.changeDetectorRef.detectChanges();
+      const editor = this.getChecklistEditorElement(elementId, itemId);
+      if (editor) {
+        const item = this.findChecklistItemLocation(elementId, itemId)?.item;
+        editor.innerHTML = item ? this.checklistItemHtml(item) : '';
+        const focusEditor = () => {
+          editor.focus();
+          this.applyPendingEditorSelection(editor);
+        };
+
+        focusEditor();
+        if (selection === 'all') {
+          requestAnimationFrame(() => {
+            if (this.editingChecklistItemId === itemId) {
+              focusEditor();
+            }
+          });
+        }
+      }
+    });
+  }
+
+  private updateChecklistItemText(elementId: string, itemId: string, richTextHtml: string): void {
+    this.updateChecklistItem(elementId, itemId, (item) => ({
+      ...item,
+      text: richHtmlToPlainText(richTextHtml),
+      richTextHtml,
+    }));
+  }
+
+  private updateChecklistItem(
+    elementId: string,
+    itemId: string,
+    updater: (item: NoteChecklistItem) => NoteChecklistItem,
+  ): void {
+    this.updateChecklistElement(elementId, (element) => ({
+      ...element,
+      items: this.mapChecklistItems(element.items, itemId, updater),
+    }));
+  }
+
+  private insertChecklistSibling(elementId: string, itemId: string): void {
+    const location = this.findChecklistItemLocation(elementId, itemId);
+    if (!location) {
+      return;
+    }
+
+    const nextItem = createChecklistItem('');
+    this.updateChecklistElement(elementId, (element) => ({
+      ...element,
+      items: this.insertChecklistItemIntoParent(
+        element.items,
+        location.parentId,
+        location.index + 1,
+        nextItem,
+      ),
+    }));
+    this.startEditingChecklistItem(elementId, nextItem.id, 'all');
+  }
+
+  private insertChecklistChild(elementId: string, itemId: string): void {
+    const nextItem = createChecklistItem('');
+    this.updateChecklistItem(elementId, itemId, (item) => ({
+      ...item,
+      children: [...item.children, nextItem],
+    }));
+    this.startEditingChecklistItem(elementId, nextItem.id, 'all');
+  }
+
+  private setChecklistItemDueDate(
+    elementId: string,
+    itemId: string,
+    dueDate: string | undefined,
+  ): void {
+    this.updateChecklistItem(elementId, itemId, (item) => ({
+      ...item,
+      dueDate,
+    }));
+  }
+
+  private applyChecklistItemEditorCommand(
+    elementId: string,
+    itemId: string,
+    command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'subscript' | 'superscript',
+  ): boolean {
+    const editor = this.getChecklistEditorElement(elementId, itemId);
+    if (!editor || !this.restoreEditorSelection(editor)) {
+      return false;
+    }
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(command);
+    this.updateChecklistItemText(elementId, itemId, editor.innerHTML);
+    this.captureEditorSelection(editor);
+    return true;
+  }
+
+  private reorderChecklistItemFromPointer(deltaY: number): void {
+    const state = this.checklistReorderState;
+    if (!state) {
+      return;
+    }
+
+    const element = this.getChecklistElement(state.elementId);
+    if (!element) {
+      return;
+    }
+
+    const siblings = this.getChecklistSiblings(element.items, state.parentId);
+    const targetIndex = Math.max(
+      0,
+      Math.min(
+        siblings.length - 1,
+        state.startIndex + Math.round(deltaY / CHECKLIST_REORDER_STEP_PX),
+      ),
+    );
+    if (targetIndex === state.startIndex) {
+      return;
+    }
+
+    this.elements = this.elements.map((candidate) =>
+      candidate.id === state.elementId && isChecklistElement(candidate)
+        ? normalizeChecklistElement({
+            ...candidate,
+            items: this.moveChecklistItemWithinParent(
+              this.cloneChecklistItems(state.startItems),
+              state.parentId,
+              state.startIndex,
+              targetIndex,
+            ),
+          })
+        : candidate,
+    );
+    this.syncNoteElements();
   }
 
   private applyCommandToSelection(
@@ -839,6 +1353,199 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     );
   }
 
+  private ensureChecklistItemSelection(): void {
+    const selectedElement = this.selectedElementId ? this.getElement(this.selectedElementId) : null;
+    if (!selectedElement || !isChecklistElement(selectedElement)) {
+      this.selectedChecklistItemId = null;
+      this.editingChecklistItemId = null;
+      return;
+    }
+
+    const selectedItem =
+      this.selectedChecklistItemId &&
+      this.findChecklistItemLocation(selectedElement.id, this.selectedChecklistItemId);
+    if (selectedItem) {
+      return;
+    }
+
+    this.selectedChecklistItemId = selectedElement.items[0]?.id ?? null;
+    if (
+      this.editingChecklistItemId &&
+      !this.findChecklistItemLocation(selectedElement.id, this.editingChecklistItemId)
+    ) {
+      this.editingChecklistItemId = null;
+    }
+  }
+
+  private isTextElementById(elementId: string): boolean {
+    const element = this.getElement(elementId);
+    return element ? isTextElement(element) : false;
+  }
+
+  private cloneElement(element: NoteElement): NoteElement {
+    return isChecklistElement(element)
+      ? normalizeChecklistElement({
+          ...element,
+          items: this.cloneChecklistItems(element.items),
+        })
+      : normalizeNoteTextElement({ ...element });
+  }
+
+  private cloneChecklistItems(items: NoteChecklistItem[]): NoteChecklistItem[] {
+    return items.map((item) => ({
+      ...item,
+      children: this.cloneChecklistItems(item.children),
+    }));
+  }
+
+  private mapChecklistItems(
+    items: NoteChecklistItem[],
+    itemId: string,
+    updater: (item: NoteChecklistItem) => NoteChecklistItem,
+  ): NoteChecklistItem[] {
+    return items.map((item) =>
+      item.id === itemId
+        ? updater(item)
+        : {
+            ...item,
+            children: this.mapChecklistItems(item.children, itemId, updater),
+          },
+    );
+  }
+
+  private insertChecklistItemIntoParent(
+    items: NoteChecklistItem[],
+    parentId: string | null,
+    targetIndex: number,
+    nextItem: NoteChecklistItem,
+  ): NoteChecklistItem[] {
+    if (parentId === null) {
+      const updated = [...items];
+      updated.splice(targetIndex, 0, nextItem);
+      return updated;
+    }
+
+    return items.map((item) =>
+      item.id === parentId
+        ? {
+            ...item,
+            children: this.insertChecklistItemIntoParent(
+              item.children,
+              null,
+              targetIndex,
+              nextItem,
+            ),
+          }
+        : {
+            ...item,
+            children: this.insertChecklistItemIntoParent(
+              item.children,
+              parentId,
+              targetIndex,
+              nextItem,
+            ),
+          },
+    );
+  }
+
+  private findChecklistItemLocation(
+    elementId: string,
+    itemId: string,
+  ): ChecklistItemLocation | null {
+    const element = this.getChecklistElement(elementId);
+    if (!element) {
+      return null;
+    }
+
+    return this.findChecklistItemInTree(element.items, itemId);
+  }
+
+  private findChecklistItemInTree(
+    items: NoteChecklistItem[],
+    itemId: string,
+    parentId: string | null = null,
+    depth = 0,
+  ): ChecklistItemLocation | null {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.id === itemId) {
+        return { item, parentId, index, depth };
+      }
+
+      const nested = this.findChecklistItemInTree(item.children, itemId, item.id, depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  private getChecklistSiblings(
+    items: NoteChecklistItem[],
+    parentId: string | null,
+  ): NoteChecklistItem[] {
+    if (parentId === null) {
+      return items;
+    }
+
+    for (const item of items) {
+      if (item.id === parentId) {
+        return item.children;
+      }
+
+      const nested = this.getChecklistSiblings(item.children, parentId);
+      if (nested.length > 0) {
+        return nested;
+      }
+    }
+
+    return [];
+  }
+
+  private moveChecklistItemWithinParent(
+    items: NoteChecklistItem[],
+    parentId: string | null,
+    fromIndex: number,
+    toIndex: number,
+  ): NoteChecklistItem[] {
+    if (parentId === null) {
+      return this.moveChecklistItemInList(items, fromIndex, toIndex);
+    }
+
+    return items.map((item) =>
+      item.id === parentId
+        ? {
+            ...item,
+            children: this.moveChecklistItemInList(item.children, fromIndex, toIndex),
+          }
+        : {
+            ...item,
+            children: this.moveChecklistItemWithinParent(
+              item.children,
+              parentId,
+              fromIndex,
+              toIndex,
+            ),
+          },
+    );
+  }
+
+  private moveChecklistItemInList(
+    items: NoteChecklistItem[],
+    fromIndex: number,
+    toIndex: number,
+  ): NoteChecklistItem[] {
+    const updated = [...items];
+    const [moved] = updated.splice(fromIndex, 1);
+    if (!moved) {
+      return items;
+    }
+
+    updated.splice(toIndex, 0, moved);
+    return updated;
+  }
+
   private async loadFontFamilyOptions(): Promise<void> {
     const queryLocalFonts = (window as QueryLocalFontsWindow).queryLocalFonts;
     if (!queryLocalFonts) {
@@ -884,7 +1591,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     for (const element of this.elements) {
-      if (element.color) {
+      if (isTextElement(element) && element.color) {
         this.colorUsage.set(element.color, (this.colorUsage.get(element.color) ?? 0) + 1);
       }
     }

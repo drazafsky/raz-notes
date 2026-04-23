@@ -1,7 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
 import { AuthRecord } from './crypto.utils';
-import { Note, StorageService } from './storage.service';
+import {
+  Note,
+  NoteChecklistElement,
+  NoteChecklistItem,
+  NoteTextElement,
+  StorageService,
+} from './storage.service';
 
 interface MockWritable {
   write: jasmine.Spy;
@@ -169,7 +175,7 @@ describe('StorageService', () => {
         ...notes[0],
         elements: [
           jasmine.objectContaining({
-            ...notes[0].elements[0],
+            ...(notes[0].elements[0] as NoteTextElement),
             height: jasmine.any(Number),
           }),
         ],
@@ -215,7 +221,7 @@ describe('StorageService', () => {
         ...notes[0],
         elements: [
           jasmine.objectContaining({
-            ...notes[0].elements[0],
+            ...(notes[0].elements[0] as NoteTextElement),
             height: jasmine.any(Number),
           }),
         ],
@@ -240,5 +246,50 @@ describe('StorageService', () => {
 
     const attachmentsRoot = root.subdirs.get('vault-attachments')!;
     expect(attachmentsRoot.subdirs.has('42')).toBeFalse();
+  });
+
+  it('normalizes checklist elements and nested items when loading stored notes', async () => {
+    const notes: Note[] = [
+      {
+        id: 9,
+        title: 'Checklist',
+        elements: [
+          {
+            id: 'c1',
+            type: 'checklist',
+            x: 20,
+            y: 30,
+            width: 260,
+            items: [
+              {
+                id: 'i1',
+                text: 'Parent item',
+                state: 'partial',
+                dueDate: '2026-05-01',
+                children: [{ id: 'i2', text: 'Child item', state: 'checked', children: [] }],
+              } as unknown as NoteChecklistItem,
+            ],
+          } as unknown as NoteChecklistElement,
+        ],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T00:00:00.000Z',
+        attachments: [],
+      },
+    ];
+    root.files.set('notes-index.json', createMockFileHandle(JSON.stringify(notes)));
+    service.setVaultKey(vaultKey);
+
+    const [loaded] = await service.loadNotes();
+    const checklist = loaded.elements[0] as {
+      type: string;
+      height: number;
+      items: { richTextHtml?: string; dueDate?: string; children: { state: string }[] }[];
+    };
+
+    expect(checklist.type).toBe('checklist');
+    expect(checklist.height).toEqual(jasmine.any(Number));
+    expect(checklist.items[0].richTextHtml).toContain('Parent item');
+    expect(checklist.items[0].dueDate).toBe('2026-05-01');
+    expect(checklist.items[0].children[0].state).toBe('checked');
   });
 });
