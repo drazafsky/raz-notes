@@ -834,14 +834,53 @@
                   </foreignObject>
                 }
                 @if (selectedElementId === element.id && activeTool === 'selection') {
-                  <circle
-                    [attr.cx]="element.x + element.width + 12"
-                    [attr.cy]="element.y + estimateElementHeight(element) + 4"
-                    [attr.r]="8 / scale"
-                    fill="rgb(var(--theme-accent) / 1)"
+                  <g
+                    [attr.transform]="
+                      'translate(' +
+                      (element.x + element.width + 12) +
+                      ' ' +
+                      (element.y + estimateElementHeight(element) + 4) +
+                      ')'
+                    "
                     style="cursor: nwse-resize"
                     (pointerdown)="onResizeHandlePointerDown($event, element.id)"
-                  />
+                  >
+                    <rect
+                      [attr.x]="-10 / scale"
+                      [attr.y]="-10 / scale"
+                      [attr.width]="20 / scale"
+                      [attr.height]="20 / scale"
+                      fill="transparent"
+                      pointer-events="all"
+                    />
+                    <line
+                      [attr.x1]="-7 / scale"
+                      [attr.y1]="4 / scale"
+                      [attr.x2]="4 / scale"
+                      [attr.y2]="-7 / scale"
+                      [attr.stroke-width]="2 / scale"
+                      stroke="rgb(var(--theme-accent) / 1)"
+                      stroke-linecap="round"
+                    />
+                    <line
+                      [attr.x1]="-3 / scale"
+                      [attr.y1]="4 / scale"
+                      [attr.x2]="4 / scale"
+                      [attr.y2]="-3 / scale"
+                      [attr.stroke-width]="2 / scale"
+                      stroke="rgb(var(--theme-accent) / 1)"
+                      stroke-linecap="round"
+                    />
+                    <line
+                      [attr.x1]="1 / scale"
+                      [attr.y1]="4 / scale"
+                      [attr.x2]="4 / scale"
+                      [attr.y2]="1 / scale"
+                      [attr.stroke-width]="2 / scale"
+                      stroke="rgb(var(--theme-accent) / 1)"
+                      stroke-linecap="round"
+                    />
+                  </g>
                 }
               </g>
             }
