@@ -156,6 +156,7 @@ describe('NoteDetailsPageComponent', () => {
   it('creates a text element only when the text tool is active', async () => {
     const fixture = await createComponent();
     const initialCount = fixture.componentInstance.elements.length;
+    const selectSpy = spyOn(HTMLTextAreaElement.prototype, 'select').and.callThrough();
 
     fixture.componentInstance.setActiveTool('text');
     fixture.componentInstance.onCanvasPointerDown({
@@ -167,8 +168,17 @@ describe('NoteDetailsPageComponent', () => {
       clientX: 100,
       clientY: 120
     } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const editor = fixture.nativeElement.querySelector(
+      `#${fixture.componentInstance.inlineEditorId(fixture.componentInstance.elements.at(-1)!.id)}`
+    ) as HTMLTextAreaElement;
 
     expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
+    expect(fixture.componentInstance.editingElementId).toBe(fixture.componentInstance.elements.at(-1)!.id);
+    expect(selectSpy).toHaveBeenCalled();
+    expect(document.activeElement).toBe(editor);
   });
 
   it('does not create a text element when the selection tool is active', async () => {
@@ -214,6 +224,27 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.elements[0].text).toBe('Line 1\nLine 2');
   });
 
+  it('resizes the selected element horizontally and vertically', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.onResizeHandlePointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined
+      } as PointerEvent,
+      't1'
+    );
+    fixture.componentInstance.onDocumentPointerMove({
+      clientX: 50,
+      clientY: 42
+    } as PointerEvent);
+
+    expect(fixture.componentInstance.elements[0].width).toBeGreaterThan(180);
+    expect(fixture.componentInstance.elements[0].fontSize).toBeGreaterThan(24);
+  });
+
   it('deletes the selected text element with the delete key', async () => {
     const notesState = new MockNotesStateService();
     notesState.note = {
@@ -239,9 +270,15 @@ describe('NoteDetailsPageComponent', () => {
 
   it('removes external text configuration inputs from the editor layout', async () => {
     const fixture = await createComponent();
+    fixture.componentInstance.selectedElementId = 't1';
+    fixture.detectChanges();
+    const selectionRect = fixture.nativeElement.querySelector('svg g g rect');
+    const textNode = fixture.nativeElement.querySelector('foreignObject div');
 
     expect(fixture.nativeElement.querySelector('button[aria-label="Selection tool"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('button[aria-label="Text tool"]')).toBeTruthy();
+    expect(selectionRect.getAttribute('stroke-dasharray')).toBe('8 6');
+    expect(textNode.style.cursor).toBe('move');
     expect(fixture.nativeElement.textContent).not.toContain('Selected text');
     expect(fixture.nativeElement.textContent).not.toContain('Width');
     expect(fixture.nativeElement.textContent).not.toContain('Font size');

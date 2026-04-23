@@ -30,6 +30,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
   activeTool: CanvasTool = 'selection';
+  private pendingEditorSelection: 'all' | 'end' = 'end';
   viewX = 480;
   viewY = 280;
   scale = 1;
@@ -260,7 +261,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
 
     this.updateElement(element.id, {
       width: Math.max(100, this.elementStart.width + dx / this.scale),
-      fontSize: Math.max(14, this.elementStart.fontSize + dx / (this.scale * 8))
+      fontSize: Math.max(14, this.elementStart.fontSize + dy / (this.scale * 4))
     });
   }
 
@@ -343,11 +344,31 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     };
     this.elements = [...this.elements, element];
     this.selectedElementId = element.id;
+    this.startEditingElement(element.id, 'all');
   }
 
   onInlineEditorPointerDown(event: PointerEvent, elementId: string): void {
     event.stopPropagation();
     this.selectedElementId = elementId;
+  }
+
+  onInlineEditorFocus(elementId: string, event: FocusEvent): void {
+    if (this.editingElementId !== elementId) {
+      return;
+    }
+
+    const input = event.target;
+    if (!(input instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    if (this.pendingEditorSelection === 'all') {
+      input.select();
+    } else {
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+
+    this.pendingEditorSelection = 'end';
   }
 
   stopEditingElement(): void {
@@ -382,18 +403,18 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     return `text-editor-${elementId}`;
   }
 
-  private startEditingElement(elementId: string): void {
+  private startEditingElement(elementId: string, selection: 'all' | 'end' = 'end'): void {
     if (!this.getElement(elementId)) {
       return;
     }
 
     this.selectedElementId = elementId;
     this.editingElementId = elementId;
+    this.pendingEditorSelection = selection;
     queueMicrotask(() => {
       const input = document.getElementById(this.inlineEditorId(elementId));
       if (input instanceof HTMLTextAreaElement) {
         input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
       }
     });
   }
