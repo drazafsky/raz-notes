@@ -70,6 +70,9 @@ interface DragAlignmentGuide {
   position: number;
   snapped: boolean;
 }
+interface CanvasHistorySnapshot {
+  elements: NoteElement[];
+}
 interface ChecklistReorderState {
   elementId: string;
   itemId: string;
@@ -159,6 +162,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   dragAlignmentEnabled = false;
   dragAlignmentGuides: DragAlignmentGuide[] = [];
   activeTool: CanvasTool = 'selection';
+  undoStack: CanvasHistorySnapshot[] = [];
+  redoStack: CanvasHistorySnapshot[] = [];
   private pendingEditorSelection: 'all' | 'end' | null = null;
   viewX = 480;
   viewY = 280;
@@ -177,6 +182,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private readonly colorUsage = new Map<string, number>();
   private saveNotificationTimeoutId: number | null = null;
   private checklistReorderState: ChecklistReorderState | null = null;
+  private interactionHistoryCaptured = false;
+  private isReplayingHistory = false;
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -298,6 +305,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.dragAlignmentGuides = [];
     this.interactionMode = 'canvas';
     this.interactionMoved = false;
+    this.interactionHistoryCaptured = false;
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.viewStart = { x: this.viewX, y: this.viewY };
     this.activeElementId = null;
@@ -335,6 +343,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.activeElementId = elementId;
     this.interactionMode = 'drag';
     this.interactionMoved = false;
+    this.interactionHistoryCaptured = false;
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.elementStart = {
       x: element.x,
@@ -372,6 +381,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.activeElementId = elementId;
     this.interactionMode = 'resize';
     this.interactionMoved = false;
+    this.interactionHistoryCaptured = false;
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.elementStart = {
       x: element.x,
@@ -427,38 +437,46 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     if (this.interactionMode === 'drag') {
+      this.captureInteractionHistory();
       const proposedX = this.elementStart.x + dx / this.scale;
       const proposedY = this.elementStart.y + dy / this.scale;
       const alignment = this.resolveDragAlignment(element, proposedX, proposedY, event.shiftKey);
       this.dragAlignmentGuides = alignment.guides;
-      this.updateElement(element.id, (currentElement) =>
-        isChecklistElement(currentElement)
-          ? normalizeChecklistElement({
-              ...currentElement,
-              x: proposedX + alignment.deltaX,
-              y: proposedY + alignment.deltaY,
-            })
-          : normalizeNoteTextElement({
-              ...currentElement,
-              x: proposedX + alignment.deltaX,
-              y: proposedY + alignment.deltaY,
-            }),
+      this.updateElement(
+        element.id,
+        (currentElement) =>
+          isChecklistElement(currentElement)
+            ? normalizeChecklistElement({
+                ...currentElement,
+                x: proposedX + alignment.deltaX,
+                y: proposedY + alignment.deltaY,
+              })
+            : normalizeNoteTextElement({
+                ...currentElement,
+                x: proposedX + alignment.deltaX,
+                y: proposedY + alignment.deltaY,
+              }),
+        false,
       );
       return;
     }
 
-    this.updateElement(element.id, (currentElement) =>
-      isChecklistElement(currentElement)
-        ? normalizeChecklistElement({
-            ...currentElement,
-            width: Math.max(180, this.elementStart.width + dx / this.scale),
-            height: Math.max(72, this.elementStart.height + dy / this.scale),
-          })
-        : normalizeNoteTextElement({
-            ...currentElement,
-            width: Math.max(100, this.elementStart.width + dx / this.scale),
-            height: Math.max(48, this.elementStart.height + dy / this.scale),
-          }),
+    this.captureInteractionHistory();
+    this.updateElement(
+      element.id,
+      (currentElement) =>
+        isChecklistElement(currentElement)
+          ? normalizeChecklistElement({
+              ...currentElement,
+              width: Math.max(180, this.elementStart.width + dx / this.scale),
+              height: Math.max(72, this.elementStart.height + dy / this.scale),
+            })
+          : normalizeNoteTextElement({
+              ...currentElement,
+              width: Math.max(100, this.elementStart.width + dx / this.scale),
+              height: Math.max(48, this.elementStart.height + dy / this.scale),
+            }),
+      false,
     );
     if (isChecklistElement(element)) {
       this.syncChecklistElementHeightToContent(element.id);
@@ -495,22 +513,42 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.interactionMode = 'none';
     this.activeElementId = null;
     this.interactionMoved = false;
+    this.interactionHistoryCaptured = false;
     this.checklistReorderState = null;
     this.dragAlignmentGuides = [];
   }
 
   @HostListener('document:keydown', ['$event'])
   onDocumentKeyDown(event: KeyboardEvent): void {
+    const target = event.target;
+    const isTextInputTarget =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'z') {
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      event.preventDefault();
+      this.undoCanvas();
+      return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'y') {
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      event.preventDefault();
+      this.redoCanvas();
+      return;
+    }
+
     if (!this.selectedElementId || (event.key !== 'Delete' && event.key !== 'Backspace')) {
       return;
     }
 
-    const target = event.target;
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      (target instanceof HTMLElement && target.isContentEditable)
-    ) {
+    if (isTextInputTarget) {
       return;
     }
 
@@ -618,6 +656,42 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  canUndoCanvas(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  canRedoCanvas(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  undoCanvas(): void {
+    if (!this.canUndoCanvas()) {
+      return;
+    }
+
+    const snapshot = this.undoStack.pop();
+    if (!snapshot) {
+      return;
+    }
+
+    this.redoStack.push(this.captureCanvasHistorySnapshot());
+    this.applyCanvasHistorySnapshot(snapshot);
+  }
+
+  redoCanvas(): void {
+    if (!this.canRedoCanvas()) {
+      return;
+    }
+
+    const snapshot = this.redoStack.pop();
+    if (!snapshot) {
+      return;
+    }
+
+    this.undoStack.push(this.captureCanvasHistorySnapshot());
+    this.applyCanvasHistorySnapshot(snapshot);
+  }
+
   setActiveTool(tool: CanvasTool): void {
     this.activeTool = tool;
     this.dragAlignmentGuides = [];
@@ -698,6 +772,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private addTextElement(x: number, y: number): void {
+    this.recordCanvasHistory();
     const element = normalizeNoteTextElement({
       id: crypto.randomUUID(),
       text: 'New text',
@@ -712,6 +787,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private addChecklistElement(x: number, y: number): void {
+    this.recordCanvasHistory();
     const element = normalizeChecklistElement({
       id: crypto.randomUUID(),
       type: 'checklist',
@@ -864,7 +940,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return nearest;
   }
 
-  private updateElement(elementId: string, updater: (element: NoteElement) => NoteElement): void {
+  private updateElement(
+    elementId: string,
+    updater: (element: NoteElement) => NoteElement,
+    recordHistory = true,
+  ): void {
+    if (recordHistory) {
+      this.recordCanvasHistory();
+    }
     this.elements = this.elements.map((element) =>
       element.id === elementId ? updater(element) : element,
     );
@@ -881,13 +964,63 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     elementId: string,
     updater: (element: NoteChecklistElement) => NoteChecklistElement,
     syncHeightToContent = true,
+    recordHistory = true,
   ): void {
-    this.updateElement(elementId, (element) =>
-      isChecklistElement(element) ? normalizeChecklistElement(updater(element)) : element,
+    this.updateElement(
+      elementId,
+      (element) =>
+        isChecklistElement(element) ? normalizeChecklistElement(updater(element)) : element,
+      recordHistory,
     );
     if (syncHeightToContent) {
       this.syncChecklistElementHeightToContent(elementId);
     }
+  }
+
+  private recordCanvasHistory(): void {
+    if (this.isReplayingHistory) {
+      return;
+    }
+
+    this.undoStack.push(this.captureCanvasHistorySnapshot());
+    this.redoStack = [];
+  }
+
+  private captureCanvasHistorySnapshot(): CanvasHistorySnapshot {
+    return {
+      elements: this.elements.map((element) => this.cloneElement(element)),
+    };
+  }
+
+  private applyCanvasHistorySnapshot(snapshot: CanvasHistorySnapshot): void {
+    this.isReplayingHistory = true;
+    this.elements = snapshot.elements.map((element) => this.cloneElement(element));
+    this.selectedElementId =
+      this.selectedElementId && this.getElement(this.selectedElementId)
+        ? this.selectedElementId
+        : null;
+    this.selectedChecklistItemId =
+      this.selectedElementId && this.selectedChecklistItemId
+        ? (this.findChecklistItemLocation(this.selectedElementId, this.selectedChecklistItemId)
+            ?.item.id ?? null)
+        : null;
+    this.editingElementId = null;
+    this.editingChecklistItemId = null;
+    this.pendingEditorSelection = null;
+    this.editorSelectionRange = null;
+    this.dragAlignmentGuides = [];
+    this.syncNoteElements();
+    this.isReplayingHistory = false;
+    this.changeDetectorRef.detectChanges();
+  }
+
+  private captureInteractionHistory(): void {
+    if (!this.interactionMoved || this.interactionHistoryCaptured) {
+      return;
+    }
+
+    this.recordCanvasHistory();
+    this.interactionHistoryCaptured = true;
   }
 
   private syncNoteElements(): void {
@@ -902,6 +1035,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private deleteElement(elementId: string): void {
+    this.recordCanvasHistory();
     this.elements = this.elements.filter((element) => element.id !== elementId);
     this.selectedElementId = this.elements[0]?.id ?? null;
     if (this.editingElementId === elementId) {
@@ -1500,6 +1634,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.captureInteractionHistory();
     this.elements = this.elements.map((candidate) =>
       candidate.id === state.elementId && isChecklistElement(candidate)
         ? normalizeChecklistElement({

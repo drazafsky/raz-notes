@@ -530,6 +530,99 @@ describe('NoteDetailsPageComponent', () => {
     expect(textNode.style.textDecoration).toContain('underline');
   });
 
+  it('adds undo and redo buttons to the main toolbar and updates their enabled state', async () => {
+    const fixture = await createComponent();
+
+    const undoButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Undo"]',
+    ) as HTMLButtonElement;
+    const redoButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Redo"]',
+    ) as HTMLButtonElement;
+
+    expect(undoButton.disabled).toBeTrue();
+    expect(redoButton.disabled).toBeTrue();
+
+    fixture.componentInstance.updateEditingText('t1', 'Changed once');
+    fixture.detectChanges();
+
+    expect(undoButton.disabled).toBeFalse();
+    expect(redoButton.disabled).toBeTrue();
+
+    undoButton.click();
+    fixture.detectChanges();
+
+    expect(undoButton.disabled).toBeTrue();
+    expect(redoButton.disabled).toBeFalse();
+  });
+
+  it('undoes and redoes canvas edits with ctrl-z and ctrl-y', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.updateEditingText('t1', 'Changed once');
+
+    fixture.componentInstance.onDocumentKeyDown({
+      key: 'z',
+      ctrlKey: true,
+      preventDefault: () => undefined,
+      target: document.body,
+    } as unknown as KeyboardEvent);
+
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).text).toBe('Saved body');
+
+    fixture.componentInstance.onDocumentKeyDown({
+      key: 'y',
+      ctrlKey: true,
+      preventDefault: () => undefined,
+      target: document.body,
+    } as unknown as KeyboardEvent);
+
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).text).toBe('Changed once');
+  });
+
+  it('clears redo history after a new edit following undo', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.updateEditingText('t1', 'First change');
+    fixture.componentInstance.updateEditingText('t1', 'Second change');
+
+    fixture.componentInstance.undoCanvas();
+    fixture.componentInstance.undoCanvas();
+    fixture.componentInstance.updateEditingText('t1', 'Divergent change');
+
+    expect(fixture.componentInstance.canRedoCanvas()).toBeFalse();
+
+    fixture.componentInstance.redoCanvas();
+
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).text).toBe(
+      'Divergent change',
+    );
+  });
+
+  it('undoes and redoes added canvas elements', async () => {
+    const fixture = await createComponent();
+    const initialCount = fixture.componentInstance.elements.length;
+
+    fixture.componentInstance.setActiveTool('text');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 120,
+      clientY: 140,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 120,
+      clientY: 140,
+    } as PointerEvent);
+
+    expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
+
+    fixture.componentInstance.undoCanvas();
+    expect(fixture.componentInstance.elements.length).toBe(initialCount);
+
+    fixture.componentInstance.redoCanvas();
+    expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
+  });
+
   it('resizes the selected element without changing its font size', async () => {
     const fixture = await createComponent();
 
