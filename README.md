@@ -1,74 +1,62 @@
 # Raz Notes
 
-Offline-first Angular notes application with local-only authentication, optional device unlock, and encrypted storage.
+Raz Notes is an offline-first note app for creating SVG-based notes with local-only authentication and encrypted local storage.
 
 ## Features
 
-- Create SVG canvas notes with infinite pan and zoom
-- Click anywhere on a note to add text, then drag and resize text items
-- Attach any file type to a note (images, videos, audio, PDFs, and more)
-- Create a local account and sign in entirely offline
-- Optionally enable device-backed unlock (for example biometrics or a passkey prompt) when the browser exposes the required offline WebAuthn capabilities
-- Navigate with a shell menu containing Notes and Settings
-- Automatically follows the browser light or dark color-scheme preference
-- Keeps the user signed in across refreshes with a configurable login timeout, including an unfocus-lock option
-- Browse notes on a dedicated list page with SVG previews plus created and last-modified timestamps
-- Open a note details page to edit the SVG canvas and manage attachments
-- Notes and attachments are encrypted locally using a password-protected vault stored in the **Origin Private File System (OPFS)**
-- PWA/service worker setup for offline app shell support
+- **Offline login and vault access** with no server dependency for account creation or sign-in
+- **Encrypted local storage** for notes and attachments using a password-protected vault in the Origin Private File System (OPFS)
+- **Optional device-backed unlock** when the browser exposes offline WebAuthn/device credential support
+- **SVG canvas notes** with pan, zoom, draggable text elements, resize handles, and inline rich-text formatting
+- **Per-selection text styling** including font family, size, color, bold, italic, underline, strikethrough, subscript, and superscript
+- **Attachments on notes** with inline viewing for supported file types
+- **Notes list previews** that render each note’s SVG content directly in the list
+- **Responsive shell and theming** with automatic light/dark mode based on the browser preference
+- **Configurable login timeout** including never-lock and application-unfocus locking modes
+- **PWA/offline shell support** via the Angular service worker
 
-## Development server
+## Local development
 
-To start a local development server, run:
+Install dependencies:
 
 ```bash
-ng serve
+npm install
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Start the development server:
 
 ```bash
-ng generate component component-name
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+The app runs at `http://localhost:4200/`.
+
+## Quality checks
+
+Format check:
 
 ```bash
-ng generate --help
+npm run format:check
 ```
 
-## Building
-
-To build the project run:
+Lint:
 
 ```bash
-ng build
+npm run lint
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Production build:
 
 ```bash
-ng test
+npm run build
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+Unit tests:
 
 ```bash
-ng e2e
+npm test -- --watch=false --browsers=ChromeHeadless
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Git hooks
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Pre-commit checks run automatically through Husky and `lint-staged`. Staged source and config files are formatted and linted before a commit is created.
