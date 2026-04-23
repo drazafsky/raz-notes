@@ -8,7 +8,9 @@ import { AuthService, LOGIN_TIMEOUT_OPTIONS } from './auth.service';
   standalone: true,
   imports: [FormsModule],
   template: `
-    <section class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10">
+    <section
+      class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
+    >
       <h2 class="text-2xl font-semibold text-theme-text">Settings</h2>
 
       <section class="mt-6 rounded-lg border border-theme-border bg-theme-bg p-4">
@@ -18,13 +20,17 @@ import { AuthService, LOGIN_TIMEOUT_OPTIONS } from './auth.service';
         </p>
 
         @if (errorMessage) {
-          <p class="mt-4 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">
+          <p
+            class="mt-4 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+          >
             {{ errorMessage }}
           </p>
         }
 
         <div class="mt-4 flex max-w-sm flex-col gap-2">
-          <label for="login-timeout" class="text-sm font-medium text-theme-text">Login timeout</label>
+          <label for="login-timeout" class="text-sm font-medium text-theme-text"
+            >Login timeout</label
+          >
           <select
             id="login-timeout"
             [ngModel]="auth.loginTimeout()"
@@ -38,7 +44,7 @@ import { AuthService, LOGIN_TIMEOUT_OPTIONS } from './auth.service';
         </div>
       </section>
     </section>
-  `
+  `,
 })
 export class SettingsPageComponent {
   readonly auth = inject(AuthService);

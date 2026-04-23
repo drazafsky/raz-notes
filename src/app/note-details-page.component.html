@@ -1,6 +1,12 @@
-<section class="flex min-h-[calc(100vh-9rem)] flex-col rounded-lg border border-theme-border bg-theme-surface p-3 shadow-sm shadow-theme-brand/10 lg:p-4">
+<section
+  class="flex min-h-[calc(100vh-9rem)] flex-col rounded-lg border border-theme-border bg-theme-surface p-3 shadow-sm shadow-theme-brand/10 lg:p-4"
+>
   @if (noteError) {
-    <p class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent">{{ noteError }}</p>
+    <p
+      class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"
+    >
+      {{ noteError }}
+    </p>
   }
 
   <form (ngSubmit)="saveNote()" class="flex min-h-full flex-1 flex-col gap-3">
@@ -23,7 +29,8 @@
 
       @if (note) {
         <p class="hidden text-xs text-theme-muted xl:block">
-          Created {{ note.createdAt | date: 'short' }} · Last modified {{ note.lastModifiedAt | date: 'short' }}
+          Created {{ note.createdAt | date: 'short' }} · Last modified
+          {{ note.lastModifiedAt | date: 'short' }}
         </p>
       }
 
@@ -89,7 +96,12 @@
       >
         <defs>
           <pattern id="svg-grid" width="80" height="80" patternUnits="userSpaceOnUse">
-            <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgb(var(--theme-border) / 0.45)" stroke-width="1" />
+            <path
+              d="M 80 0 L 0 0 0 80"
+              fill="none"
+              stroke="rgb(var(--theme-border) / 0.45)"
+              stroke-width="1"
+            />
           </pattern>
         </defs>
         <rect x="-50000" y="-50000" width="100000" height="100000" fill="url(#svg-grid)" />
@@ -98,7 +110,7 @@
             <g>
               <rect
                 [attr.x]="element.x - 12"
-                [attr.y]="element.y - element.fontSize - 10"
+                [attr.y]="element.y - textFontSize - 10"
                 [attr.width]="element.width + 24"
                 [attr.height]="estimateElementHeight(element) + 20"
                 rx="12"
@@ -112,7 +124,7 @@
               />
               <foreignObject
                 [attr.x]="element.x"
-                [attr.y]="element.y - element.fontSize"
+                [attr.y]="element.y - textFontSize"
                 [attr.width]="element.width"
                 [attr.height]="estimateElementHeight(element)"
               >
@@ -127,7 +139,7 @@
                     (focus)="onInlineEditorFocus(element.id, $event)"
                     (blur)="stopEditingElement()"
                     class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
-                    [style.fontSize.px]="element.fontSize"
+                    [style.fontSize.px]="textFontSize"
                     [style.lineHeight]="1.35"
                     spellcheck="false"
                   ></textarea>
@@ -135,7 +147,7 @@
                   <div
                     xmlns="http://www.w3.org/1999/xhtml"
                     class="select-none whitespace-pre-wrap break-words text-theme-text"
-                    [style.fontSize.px]="element.fontSize"
+                    [style.fontSize.px]="textFontSize"
                     [style.lineHeight]="1.35"
                     [style.cursor]="activeTool === 'selection' ? 'move' : 'default'"
                     (pointerdown)="onTextPointerDown($event, element.id)"

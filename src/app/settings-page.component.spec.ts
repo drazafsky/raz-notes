@@ -9,14 +9,16 @@ describe('SettingsPageComponent', () => {
   it('renders the login timeout settings', async () => {
     const auth = {
       loginTimeout: signal<LoginTimeoutOption>('1-hour'),
-      setLoginTimeout: jasmine.createSpy('setLoginTimeout').and.callFake(async (timeout: LoginTimeoutOption) => {
-        auth.loginTimeout.set(timeout);
-      })
+      setLoginTimeout: jasmine
+        .createSpy('setLoginTimeout')
+        .and.callFake(async (timeout: LoginTimeoutOption) => {
+          auth.loginTimeout.set(timeout);
+        }),
     };
 
     await TestBed.configureTestingModule({
       imports: [SettingsPageComponent],
-      providers: [{ provide: AuthService, useValue: auth }]
+      providers: [{ provide: AuthService, useValue: auth }],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(SettingsPageComponent);
@@ -33,14 +35,16 @@ describe('SettingsPageComponent', () => {
   it('updates the login timeout through the auth service', async () => {
     const auth = {
       loginTimeout: signal<LoginTimeoutOption>('1-hour'),
-      setLoginTimeout: jasmine.createSpy('setLoginTimeout').and.callFake(async (timeout: LoginTimeoutOption) => {
-        auth.loginTimeout.set(timeout);
-      })
+      setLoginTimeout: jasmine
+        .createSpy('setLoginTimeout')
+        .and.callFake(async (timeout: LoginTimeoutOption) => {
+          auth.loginTimeout.set(timeout);
+        }),
     };
 
     await TestBed.configureTestingModule({
       imports: [SettingsPageComponent],
-      providers: [{ provide: AuthService, useValue: auth }]
+      providers: [{ provide: AuthService, useValue: auth }],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(SettingsPageComponent);

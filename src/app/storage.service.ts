@@ -7,8 +7,9 @@ import {
   bytesToBase64,
   bytesToUtf8,
   toArrayBuffer,
-  utf8ToBytes
+  utf8ToBytes,
 } from './crypto.utils';
+import { normalizeNoteTextElement } from './note-svg.utils';
 
 export interface Attachment {
   id: string;
@@ -23,6 +24,7 @@ export interface NoteTextElement {
   x: number;
   y: number;
   width: number;
+  height?: number;
   fontSize: number;
 }
 
@@ -195,7 +197,9 @@ export class StorageService {
   private parseNotes(text: string): Note[] {
     const parsed: unknown = JSON.parse(text);
     if (Array.isArray(parsed)) {
-      return parsed.map((note) => this.normalizeNote(note as Partial<Note> & Record<string, unknown>));
+      return parsed.map((note) =>
+        this.normalizeNote(note as Partial<Note> & Record<string, unknown>),
+      );
     }
 
     throw new Error('Stored notes data is invalid.');
@@ -208,14 +212,14 @@ export class StorageService {
       createdAt: note.createdAt as string,
       lastModifiedAt: (note.lastModifiedAt as string | undefined) ?? (note.createdAt as string),
       attachments: Array.isArray(note.attachments) ? (note.attachments as Attachment[]) : [],
-      elements: this.normalizeElements(note)
+      elements: this.normalizeElements(note),
     };
   }
 
   private normalizeElements(note: Partial<Note> & Record<string, unknown>): NoteTextElement[] {
     if (Array.isArray(note.elements)) {
       return note.elements.map((element, index) =>
-        this.normalizeElement(element as unknown as Record<string, unknown>, index)
+        this.normalizeElement(element as unknown as Record<string, unknown>, index),
       );
     }
 
@@ -223,40 +227,38 @@ export class StorageService {
   }
 
   private normalizeElement(element: Record<string, unknown>, index: number): NoteTextElement {
-    return {
+    return normalizeNoteTextElement({
       id: typeof element['id'] === 'string' ? (element['id'] as string) : `text-${index}`,
       text: typeof element['text'] === 'string' ? (element['text'] as string) : 'New text',
       x: typeof element['x'] === 'number' ? (element['x'] as number) : 0,
       y: typeof element['y'] === 'number' ? (element['y'] as number) : 0,
-      width: typeof element['width'] === 'number' ? (element['width'] as number) : 180,
-      fontSize: typeof element['fontSize'] === 'number' ? (element['fontSize'] as number) : 24
-    };
+      width: typeof element['width'] === 'number' ? (element['width'] as number) : undefined,
+      height: typeof element['height'] === 'number' ? (element['height'] as number) : undefined,
+    });
   }
 
   private migrateLegacyContentToElements(note: Record<string, unknown>): NoteTextElement[] {
     if (typeof note['text'] === 'string' && note['text'].trim()) {
       return [
-        {
+        normalizeNoteTextElement({
           id: crypto.randomUUID(),
           text: note['text'].trim(),
           x: 0,
           y: 0,
           width: 280,
-          fontSize: 24
-        }
+        }),
       ];
     }
 
     if (Array.isArray(note['todos']) && note['todos'].length > 0) {
       return [
-        {
+        normalizeNoteTextElement({
           id: crypto.randomUUID(),
           text: (note['todos'] as string[]).map((item) => `• ${item}`).join('\n'),
           x: 0,
           y: 0,
           width: 280,
-          fontSize: 24
-        }
+        }),
       ];
     }
 
@@ -286,13 +288,13 @@ export class StorageService {
     const ciphertext = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
       this.requireVaultKey(),
-      toArrayBuffer(data)
+      toArrayBuffer(data),
     );
 
     return {
       version: 1,
       iv: bytesToBase64(iv),
-      ciphertext: bytesToBase64(ciphertext)
+      ciphertext: bytesToBase64(ciphertext),
     };
   }
 
@@ -306,7 +308,7 @@ export class StorageService {
     const plaintext = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: toArrayBuffer(base64ToBytes(payload.iv)) },
       this.requireVaultKey(),
-      toArrayBuffer(base64ToBytes(payload.ciphertext))
+      toArrayBuffer(base64ToBytes(payload.ciphertext)),
     );
     return new Uint8Array(plaintext);
   }
@@ -314,7 +316,7 @@ export class StorageService {
   private async readLegacyAttachment(
     noteId: number,
     attachmentId: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<Blob> {
     const root = await this.getRoot();
     const noteDir = await root.getDirectoryHandle(String(noteId));
@@ -324,7 +326,7 @@ export class StorageService {
   }
 
   private async getEncryptedAttachmentsRoot(
-    create: boolean
+    create: boolean,
   ): Promise<FileSystemDirectoryHandle | null> {
     const root = await this.getRoot();
     try {
@@ -340,7 +342,7 @@ export class StorageService {
 
   private async getEncryptedNoteDir(
     noteId: number,
-    create: boolean
+    create: boolean,
   ): Promise<FileSystemDirectoryHandle> {
     const attachmentsRoot = await this.getEncryptedAttachmentsRoot(create);
     if (!attachmentsRoot) {
@@ -376,7 +378,7 @@ export class StorageService {
   private async removeEntryIfExists(
     dir: FileSystemDirectoryHandle,
     name: string,
-    recursive: boolean
+    recursive: boolean,
   ): Promise<void> {
     try {
       await dir.removeEntry(name, { recursive });

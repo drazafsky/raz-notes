@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
 import {
   AuthRecord,
@@ -8,7 +8,7 @@ import {
   base64ToBytes,
   bytesToBase64,
   normalizeUsername,
-  toArrayBuffer
+  toArrayBuffer,
 } from './crypto.utils';
 import { StorageService } from './storage.service';
 
@@ -28,17 +28,17 @@ const SESSION_STORAGE_KEY = 'raz-notes.session';
 const MIN_ACTIVITY_REFRESH_MS = 1000;
 
 export const DEFAULT_LOGIN_TIMEOUT: LoginTimeoutOption = '1-hour';
-export const LOGIN_TIMEOUT_OPTIONS: ReadonlyArray<{
+export const LOGIN_TIMEOUT_OPTIONS: readonly {
   readonly value: LoginTimeoutOption;
   readonly label: string;
-}> = [
+}[] = [
   { value: 'never', label: 'Never' },
   { value: '30-minutes', label: '30 minutes' },
   { value: '1-hour', label: '1 hour' },
   { value: '6-hours', label: '6 hours' },
   { value: '12-hours', label: '12 hours' },
   { value: '24-hours', label: '24 hours' },
-  { value: 'application-unfocus', label: 'Application Unfocus' }
+  { value: 'application-unfocus', label: 'Application Unfocus' },
 ] as const;
 
 @Injectable({ providedIn: 'root' })
@@ -50,13 +50,12 @@ export class AuthService {
   readonly loginTimeout = signal<LoginTimeoutOption>(DEFAULT_LOGIN_TIMEOUT);
   readonly isUnlocked = computed(() => this.status() === 'unlocked');
   readonly canUsePasswordless = computed(
-    () => this.passwordlessAvailable() && this.passwordlessEnrolled()
+    () => this.passwordlessAvailable() && this.passwordlessEnrolled(),
   );
 
   private authRecord: AuthRecord | null = null;
   private sessionTimer: ReturnType<typeof setTimeout> | null = null;
-
-  constructor(private readonly storage: StorageService) {}
+  private readonly storage = inject(StorageService);
 
   async init(): Promise<void> {
     await this.storage.init();
@@ -100,23 +99,18 @@ export class AuthService {
       throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
     }
 
-    const vaultKey = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
+    const vaultKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+      'encrypt',
+      'decrypt',
+    ]);
     const wrapSalt = this.randomBytes(WRAP_SALT_BYTES);
     const wrapIv = this.randomBytes(WRAP_IV_BYTES);
-    const wrappingKey = await this.derivePasswordWrappingKey(
-      password,
-      wrapSalt,
-      PBKDF2_ITERATIONS
-    );
+    const wrappingKey = await this.derivePasswordWrappingKey(password, wrapSalt, PBKDF2_ITERATIONS);
     const exportedVaultKey = await crypto.subtle.exportKey('raw', vaultKey);
     const wrappedVaultKey = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: toArrayBuffer(wrapIv) },
       wrappingKey,
-      exportedVaultKey
+      exportedVaultKey,
     );
 
     const record: AuthRecord = {
@@ -130,8 +124,8 @@ export class AuthService {
       createdAt: new Date().toISOString(),
       userHandle: bytesToBase64(this.randomBytes(USER_HANDLE_BYTES)),
       loginSettings: {
-        timeout: DEFAULT_LOGIN_TIMEOUT
-      }
+        timeout: DEFAULT_LOGIN_TIMEOUT,
+      },
     };
 
     await this.persistAuthRecord(record);
@@ -149,7 +143,7 @@ export class AuthService {
     const wrappingKey = await this.derivePasswordWrappingKey(
       password,
       base64ToBytes(authRecord.salt),
-      authRecord.iterations
+      authRecord.iterations,
     );
 
     let rawVaultKey: ArrayBuffer;
@@ -157,7 +151,7 @@ export class AuthService {
       rawVaultKey = await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: toArrayBuffer(base64ToBytes(authRecord.iv)) },
         wrappingKey,
-        toArrayBuffer(base64ToBytes(authRecord.wrappedVaultKey))
+        toArrayBuffer(base64ToBytes(authRecord.wrappedVaultKey)),
       );
     } catch {
       throw new Error('Invalid username or password.');
@@ -196,7 +190,7 @@ export class AuthService {
     const wrappedVaultKey = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: toArrayBuffer(wrapIv) },
       wrappingKey,
-      rawVaultKey
+      rawVaultKey,
     );
 
     await this.persistAuthRecord({
@@ -208,8 +202,8 @@ export class AuthService {
         prfSalt: bytesToBase64(prfSalt),
         iv: bytesToBase64(wrapIv),
         wrappedVaultKey: bytesToBase64(wrappedVaultKey),
-        createdAt: new Date().toISOString()
-      }
+        createdAt: new Date().toISOString(),
+      },
     });
   }
 
@@ -219,8 +213,10 @@ export class AuthService {
       return;
     }
 
-    const { passwordless: _passwordless, ...rest } = authRecord;
-    await this.persistAuthRecord(rest);
+    await this.persistAuthRecord({
+      ...authRecord,
+      passwordless: undefined,
+    });
   }
 
   async setLoginTimeout(timeout: LoginTimeoutOption): Promise<void> {
@@ -228,8 +224,8 @@ export class AuthService {
     await this.persistAuthRecord({
       ...authRecord,
       loginSettings: {
-        timeout
-      }
+        timeout,
+      },
     });
 
     if (this.isUnlocked()) {
@@ -272,7 +268,7 @@ export class AuthService {
 
     this.writeSessionRecord({
       ...session,
-      lastActivityAt: new Date(now).toISOString()
+      lastActivityAt: new Date(now).toISOString(),
     });
     this.scheduleSessionTimeout();
   }
@@ -362,12 +358,12 @@ export class AuthService {
         challenge: toArrayBuffer(this.randomBytes(PRF_SALT_BYTES)),
         rp: {
           id: this.getRpId(),
-          name: 'Raz Notes'
+          name: 'Raz Notes',
         },
         user: {
           id: toArrayBuffer(userHandle),
           name: authRecord.username,
-          displayName: authRecord.username
+          displayName: authRecord.username,
         },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
         attestation: 'none',
@@ -376,24 +372,24 @@ export class AuthService {
           authenticatorAttachment: 'platform',
           residentKey: 'required',
           requireResidentKey: true,
-          userVerification: 'required'
-        }
-      }
+          userVerification: 'required',
+        },
+      },
     });
 
     const publicKeyCredential = this.requirePublicKeyCredential(
       credential,
-      'Device unlock setup was cancelled.'
+      'Device unlock setup was cancelled.',
     );
     return new Uint8Array(publicKeyCredential.rawId);
   }
 
   private async unwrapVaultKeyWithDevice(
-    passwordless: PasswordlessCredentialRecord
+    passwordless: PasswordlessCredentialRecord,
   ): Promise<ArrayBuffer> {
     const prfOutput = await this.requestPrfOutput(
       base64ToBytes(passwordless.credentialId),
-      base64ToBytes(passwordless.prfSalt)
+      base64ToBytes(passwordless.prfSalt),
     );
     const wrappingKey = await this.deriveDeviceWrappingKey(prfOutput);
 
@@ -401,14 +397,17 @@ export class AuthService {
       return await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: toArrayBuffer(base64ToBytes(passwordless.iv)) },
         wrappingKey,
-        toArrayBuffer(base64ToBytes(passwordless.wrappedVaultKey))
+        toArrayBuffer(base64ToBytes(passwordless.wrappedVaultKey)),
       );
     } catch {
       throw new Error('Device unlock failed. Use your password instead.');
     }
   }
 
-  private async requestPrfOutput(credentialId: Uint8Array, prfSalt: Uint8Array): Promise<ArrayBuffer> {
+  private async requestPrfOutput(
+    credentialId: Uint8Array,
+    prfSalt: Uint8Array,
+  ): Promise<ArrayBuffer> {
     const credential = await navigator.credentials.get({
       publicKey: {
         challenge: toArrayBuffer(this.randomBytes(PRF_SALT_BYTES)),
@@ -416,24 +415,24 @@ export class AuthService {
         allowCredentials: [
           {
             id: toArrayBuffer(credentialId),
-            type: 'public-key'
-          }
+            type: 'public-key',
+          },
         ],
         userVerification: 'required',
         timeout: 60000,
         extensions: {
           prf: {
             eval: {
-              first: toArrayBuffer(prfSalt)
-            }
-          }
-        }
-      }
+              first: toArrayBuffer(prfSalt),
+            },
+          },
+        },
+      },
     });
 
     const publicKeyCredential = this.requirePublicKeyCredential(
       credential,
-      'Device unlock was cancelled.'
+      'Device unlock was cancelled.',
     );
     const prfOutput = publicKeyCredential.getClientExtensionResults().prf?.results?.first;
     if (!prfOutput) {
@@ -445,20 +444,22 @@ export class AuthService {
 
   private async unlockWithRawVaultKey(
     rawVaultKey: ArrayBuffer,
-    unlockedWith: SessionRecord['unlockedWith']
+    unlockedWith: SessionRecord['unlockedWith'],
   ): Promise<void> {
     this.storage.setVaultKey(await this.importVaultKey(rawVaultKey));
     this.writeSessionRecord({
       version: 1,
       vaultKey: bytesToBase64(rawVaultKey),
       lastActivityAt: new Date().toISOString(),
-      unlockedWith
+      unlockedWith,
     });
     this.scheduleSessionTimeout();
   }
 
   private async restoreSession(session: SessionRecord): Promise<void> {
-    this.storage.setVaultKey(await this.importVaultKey(toArrayBuffer(base64ToBytes(session.vaultKey))));
+    this.storage.setVaultKey(
+      await this.importVaultKey(toArrayBuffer(base64ToBytes(session.vaultKey))),
+    );
     this.writeSessionRecord(session);
     this.status.set('unlocked');
     this.scheduleSessionTimeout();
@@ -466,7 +467,7 @@ export class AuthService {
 
   private requirePublicKeyCredential(
     credential: Credential | null,
-    fallbackMessage: string
+    fallbackMessage: string,
   ): PublicKeyCredential {
     if (!credential || !('rawId' in credential)) {
       throw new Error(fallbackMessage);
@@ -478,14 +479,14 @@ export class AuthService {
   private async derivePasswordWrappingKey(
     password: string,
     salt: Uint8Array,
-    iterations: number
+    iterations: number,
   ): Promise<CryptoKey> {
     const passwordKey = await crypto.subtle.importKey(
       'raw',
       new TextEncoder().encode(password),
       'PBKDF2',
       false,
-      ['deriveKey']
+      ['deriveKey'],
     );
 
     return crypto.subtle.deriveKey(
@@ -493,15 +494,15 @@ export class AuthService {
         name: 'PBKDF2',
         salt: toArrayBuffer(salt),
         iterations,
-        hash: 'SHA-256'
+        hash: 'SHA-256',
       },
       passwordKey,
       {
         name: 'AES-GCM',
-        length: 256
+        length: 256,
       },
       false,
-      ['encrypt', 'decrypt']
+      ['encrypt', 'decrypt'],
     );
   }
 
@@ -509,18 +510,15 @@ export class AuthService {
     const digest = await crypto.subtle.digest('SHA-256', prfOutput);
     return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, [
       'encrypt',
-      'decrypt'
+      'decrypt',
     ]);
   }
 
   private async importVaultKey(rawVaultKey: ArrayBuffer): Promise<CryptoKey> {
-    return crypto.subtle.importKey(
-      'raw',
-      rawVaultKey,
-      { name: 'AES-GCM' },
-      true,
-      ['encrypt', 'decrypt']
-    );
+    return crypto.subtle.importKey('raw', rawVaultKey, { name: 'AES-GCM' }, true, [
+      'encrypt',
+      'decrypt',
+    ]);
   }
 
   private randomBytes(length: number): Uint8Array {
@@ -531,8 +529,8 @@ export class AuthService {
     return {
       ...record,
       loginSettings: {
-        timeout: this.getConfiguredLoginTimeout(record)
-      }
+        timeout: this.getConfiguredLoginTimeout(record),
+      },
     };
   }
 
@@ -567,7 +565,7 @@ export class AuthService {
 
       return {
         ...(parsed as SessionRecord),
-        lastActivityAt: this.getSessionActivityTimestamp(parsed as SessionRecord) as string
+        lastActivityAt: this.getSessionActivityTimestamp(parsed as SessionRecord) as string,
       };
     } catch {
       localStorage.removeItem(SESSION_STORAGE_KEY);

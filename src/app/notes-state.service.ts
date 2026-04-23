@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth.service';
+import { normalizeNoteTextElement } from './note-svg.utils';
 import { Note, NoteTextElement, StorageService } from './storage.service';
 
 export interface NoteInput {
@@ -12,15 +13,16 @@ export interface NoteInput {
 export class NotesStateService {
   readonly notes = signal<Note[]>([]);
   readonly notesByUpdatedAt = computed(() =>
-    [...this.notes()].sort((left, right) => right.lastModifiedAt.localeCompare(left.lastModifiedAt))
+    [...this.notes()].sort((left, right) =>
+      right.lastModifiedAt.localeCompare(left.lastModifiedAt),
+    ),
   );
   readonly notesByTitle = computed(() =>
-    [...this.notes()].sort((left, right) => left.title.localeCompare(right.title))
+    [...this.notes()].sort((left, right) => left.title.localeCompare(right.title)),
   );
 
   private readonly auth = inject(AuthService);
-
-  constructor(private readonly storage: StorageService) {}
+  private readonly storage = inject(StorageService);
 
   async load(): Promise<void> {
     this.notes.set(await this.storage.loadNotes());
@@ -41,13 +43,13 @@ export class NotesStateService {
       title: input.title.trim(),
       createdAt: now,
       lastModifiedAt: now,
-      elements: input.elements.map((element) => ({ ...element })),
+      elements: input.elements.map((element) => this.normalizeElement(element)),
       attachments: files.map((file) => ({
         id: crypto.randomUUID(),
         name: file.name,
         type: file.type,
-        size: file.size
-      }))
+        size: file.size,
+      })),
     };
 
     const updatedNotes = [note, ...this.notes()];
@@ -70,7 +72,7 @@ export class NotesStateService {
       createdAt: existing.createdAt,
       lastModifiedAt: new Date().toISOString(),
       attachments: existing.attachments,
-      elements: input.elements.map((element) => ({ ...element }))
+      elements: input.elements.map((element) => this.normalizeElement(element)),
     };
 
     const updatedNotes = this.notes().map((note) => (note.id === noteId ? updatedNote : note));
@@ -90,7 +92,9 @@ export class NotesStateService {
 
   async deleteAttachment(noteId: number, attachmentId: string): Promise<Note> {
     const existing = this.requireNote(noteId);
-    const attachmentExists = existing.attachments.some((attachment) => attachment.id === attachmentId);
+    const attachmentExists = existing.attachments.some(
+      (attachment) => attachment.id === attachmentId,
+    );
     if (!attachmentExists) {
       throw new Error('Attachment not found.');
     }
@@ -99,7 +103,7 @@ export class NotesStateService {
     const updatedNote: Note = {
       ...existing,
       attachments: existing.attachments.filter((attachment) => attachment.id !== attachmentId),
-      lastModifiedAt: new Date().toISOString()
+      lastModifiedAt: new Date().toISOString(),
     };
     const updatedNotes = this.notes().map((note) => (note.id === noteId ? updatedNote : note));
     this.notes.set(updatedNotes);
@@ -115,5 +119,9 @@ export class NotesStateService {
     }
 
     return note;
+  }
+
+  private normalizeElement(element: NoteTextElement): NoteTextElement {
+    return normalizeNoteTextElement(element);
   }
 }

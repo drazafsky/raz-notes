@@ -15,7 +15,7 @@ describe('NotesStateService', () => {
       'saveNotes',
       'writeAttachment',
       'deleteNote',
-      'deleteAttachment'
+      'deleteAttachment',
     ]);
     storage.loadNotes.and.returnValue(Promise.resolve([]));
     storage.saveNotes.and.returnValue(Promise.resolve());
@@ -27,8 +27,8 @@ describe('NotesStateService', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: StorageService, useValue: storage },
-        { provide: AuthService, useValue: auth }
-      ]
+        { provide: AuthService, useValue: auth },
+      ],
     });
 
     service = TestBed.inject(NotesStateService);
@@ -41,7 +41,7 @@ describe('NotesStateService', () => {
       elements: [{ id: 't1', text: 'Persisted', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
-      attachments: []
+      attachments: [],
     };
     storage.loadNotes.and.returnValue(Promise.resolve([note]));
 
@@ -52,8 +52,11 @@ describe('NotesStateService', () => {
 
   it('creates a note with matching created and modified timestamps', async () => {
     const created = await service.createNote(
-      { title: 'New note', elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }] },
-      []
+      {
+        title: 'New note',
+        elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
+      },
+      [],
     );
 
     expect(created.createdAt).toBe(created.lastModifiedAt);
@@ -69,16 +72,17 @@ describe('NotesStateService', () => {
       elements: [{ id: 't1', text: 'Before', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
-      attachments: []
+      attachments: [],
     };
     service.notes.set([existing]);
 
     const updated = await service.updateNote(2, {
       title: 'Updated',
-      elements: [{ id: 't2', text: 'Updated', x: 10, y: 20, width: 220, fontSize: 28 }]
+      elements: [{ id: 't2', text: 'Updated', x: 10, y: 20, width: 220, fontSize: 28 }],
     });
 
     expect(updated.elements[0].text).toBe('Updated');
+    expect(updated.elements[0].fontSize).toBe(24);
     expect(updated.lastModifiedAt >= existing.lastModifiedAt).toBeTrue();
     expect(service.notes()[0].title).toBe('Updated');
     expect(auth.recordActivity).toHaveBeenCalled();
@@ -91,7 +95,7 @@ describe('NotesStateService', () => {
       elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
       createdAt: '2026-04-19T00:00:00.000Z',
       lastModifiedAt: '2026-04-19T00:00:00.000Z',
-      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }]
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
     };
     service.notes.set([existing]);
 
