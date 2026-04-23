@@ -96,6 +96,26 @@ export class NotesStateService {
     this.auth.recordActivity();
   }
 
+  async deleteAttachment(noteId: number, attachmentId: string): Promise<Note> {
+    const existing = this.requireNote(noteId);
+    const attachmentExists = existing.attachments.some((attachment) => attachment.id === attachmentId);
+    if (!attachmentExists) {
+      throw new Error('Attachment not found.');
+    }
+
+    await this.storage.deleteAttachment(noteId, attachmentId);
+    const updatedNote: Note = {
+      ...existing,
+      attachments: existing.attachments.filter((attachment) => attachment.id !== attachmentId),
+      lastModifiedAt: new Date().toISOString()
+    };
+    const updatedNotes = this.notes().map((note) => (note.id === noteId ? updatedNote : note));
+    this.notes.set(updatedNotes);
+    await this.storage.saveNotes(updatedNotes);
+    this.auth.recordActivity();
+    return updatedNote;
+  }
+
   private requireNote(noteId: number): Note {
     const note = this.getNote(noteId);
     if (!note) {
