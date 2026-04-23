@@ -44,7 +44,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
   activeTool: CanvasTool = 'selection';
-  private pendingEditorSelection: 'all' | 'end' = 'end';
+  private pendingEditorSelection: 'all' | 'end' | null = null;
   viewX = 480;
   viewY = 280;
   scale = 1;
@@ -375,17 +375,12 @@ export class NoteDetailsPageComponent implements AfterViewInit {
       return;
     }
 
-    if (this.pendingEditorSelection === 'all') {
-      input.select();
-    } else {
-      input.setSelectionRange(input.value.length, input.value.length);
-    }
-
-    this.pendingEditorSelection = 'end';
+    this.applyPendingEditorSelection(input);
   }
 
   stopEditingElement(): void {
     this.editingElementId = null;
+    this.pendingEditorSelection = null;
   }
 
   private updateElement(elementId: string, patch: Partial<NoteTextElement>): void {
@@ -433,11 +428,40 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.editingElementId = elementId;
     this.pendingEditorSelection = selection;
     queueMicrotask(() => {
+      this.changeDetectorRef.detectChanges();
       const input = document.getElementById(this.inlineEditorId(elementId));
       if (input instanceof HTMLTextAreaElement) {
         input.focus();
+        this.applyPendingEditorSelection(input);
       }
     });
+  }
+
+  private applyPendingEditorSelection(input: HTMLTextAreaElement): void {
+    if (this.pendingEditorSelection === null) {
+      return;
+    }
+
+    const selection = this.pendingEditorSelection;
+    const applySelection = () => {
+      if (selection === 'all') {
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+      } else {
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    };
+
+    applySelection();
+    if (selection === 'all') {
+      requestAnimationFrame(() => {
+        if (document.activeElement === input) {
+          applySelection();
+        }
+      });
+    }
+
+    this.pendingEditorSelection = null;
   }
 
   private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {
