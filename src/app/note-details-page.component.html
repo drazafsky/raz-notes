@@ -153,9 +153,21 @@
                       [name]="'text-color-' + element.id"
                       type="color"
                       [ngModel]="toolbarTextColorValue(element)"
-                      (ngModelChange)="updateTextStyle(element.id, { color: $event })"
+                      (ngModelChange)="changeTextColor(element.id, $event)"
                       class="h-8 w-10 cursor-pointer rounded border border-theme-border bg-theme-bg p-1"
                     />
+
+                    <div class="flex items-center gap-1">
+                      @for (color of quickColorOptions; track color) {
+                        <button
+                          type="button"
+                          [attr.aria-label]="'Quick select color ' + color"
+                          class="h-6 w-6 rounded-full border border-theme-border"
+                          [style.backgroundColor]="color"
+                          (click)="changeTextColor(element.id, color)"
+                        ></button>
+                      }
+                    </div>
 
                     <button
                       type="button"
@@ -197,6 +209,39 @@
                       (click)="toggleTextFormat(element.id, 'underline')"
                     >
                       U
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label="Strikethrough"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm line-through"
+                      [class.border-theme-border]="true"
+                      [class.text-theme-text]="true"
+                      (click)="applyInlineTextCommand(element.id, 'strikeThrough')"
+                    >
+                      S
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label="Subscript"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm"
+                      [class.border-theme-border]="true"
+                      [class.text-theme-text]="true"
+                      (click)="applyInlineTextCommand(element.id, 'subscript')"
+                    >
+                      X<sub>2</sub>
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label="Superscript"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm"
+                      [class.border-theme-border]="true"
+                      [class.text-theme-text]="true"
+                      (click)="applyInlineTextCommand(element.id, 'superscript')"
+                    >
+                      X<sup>2</sup>
                     </button>
                   </div>
                 </foreignObject>
