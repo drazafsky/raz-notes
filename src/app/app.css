@@ -1,0 +1,43 @@
+main {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+  font-family: Arial, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  margin-bottom: 0.5rem;
+}
+
+.card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  padding: 0.5rem;
+}
+
+button {
+  width: fit-content;
+  cursor: pointer;
+}
+
+ul,
+ol {
+  margin: 0.5rem 0 0;
+}
