@@ -148,6 +148,20 @@
           >
             <i class="fa-solid fa-magnifying-glass-minus" aria-hidden="true"></i>
           </button>
+          <button
+            type="button"
+            (click)="toggleDragAlignment()"
+            aria-label="Toggle alignment guides"
+            title="Toggle alignment guides"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-theme-surface shadow-sm shadow-theme-brand/10 transition hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
+            [class.border-theme-accent]="dragAlignmentEnabled"
+            [class.bg-theme-brand-soft]="dragAlignmentEnabled"
+            [class.text-theme-accent]="dragAlignmentEnabled"
+            [class.border-theme-border]="!dragAlignmentEnabled"
+            [class.text-theme-text]="!dragAlignmentEnabled"
+          >
+            <i class="fa-solid fa-magnet" aria-hidden="true"></i>
+          </button>
         </div>
 
         <svg
@@ -175,6 +189,21 @@
               height="100000"
               fill="url(#svg-grid)"
             />
+            @for (guide of dragAlignmentGuides; track guide.orientation + '-' + guide.position) {
+              <line
+                data-alignment-guide="true"
+                [attr.x1]="guide.orientation === 'vertical' ? guide.position : guideExtentStart()"
+                [attr.y1]="guide.orientation === 'horizontal' ? guide.position : guideExtentStart()"
+                [attr.x2]="guide.orientation === 'vertical' ? guide.position : guideExtentEnd()"
+                [attr.y2]="guide.orientation === 'horizontal' ? guide.position : guideExtentEnd()"
+                [attr.stroke-width]="guide.snapped ? 2 / scale : 1 / scale"
+                [attr.stroke]="
+                  guide.snapped
+                    ? 'rgb(var(--theme-accent) / 0.9)'
+                    : 'rgb(var(--theme-border) / 0.9)'
+                "
+              />
+            }
             @for (element of elements; track element.id) {
               <g>
                 @if (selectedElementId === element.id && isTextElement(element)) {

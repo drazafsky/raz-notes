@@ -173,6 +173,7 @@ describe('NoteDetailsPageComponent', () => {
       ],
     };
     const fixture = await createComponent(notesState);
+    fixture.componentInstance.scale = 1;
 
     fixture.componentInstance.onTextPointerDown(
       {
@@ -217,6 +218,129 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(fixture.componentInstance.editingElementId).toBe('t1');
     expect(fixture.nativeElement.querySelector('#text-editor-t1')).toBeTruthy();
+  });
+
+  it('shows alignment guides only while shift-dragging an element', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        { id: 't1', text: 'Dragged', x: 0, y: 0, width: 120, fontSize: 24 },
+        { id: 't2', text: 'Target', x: 220, y: 120, width: 120, fontSize: 24 },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    fixture.componentInstance.scale = 1;
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      't1',
+    );
+    fixture.componentInstance.onDocumentPointerMove({
+      clientX: 40,
+      clientY: 30,
+      shiftKey: true,
+    } as PointerEvent);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelectorAll('[data-alignment-guide="true"]').length,
+    ).toBeGreaterThan(0);
+
+    fixture.componentInstance.onDocumentPointerMove({
+      clientX: 40,
+      clientY: 30,
+      shiftKey: false,
+    } as PointerEvent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-alignment-guide="true"]')).toBeNull();
+  });
+
+  it('snaps a dragged element to a guide when shift is held', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        { id: 't1', text: 'Dragged', x: 0, y: 0, width: 100, fontSize: 24 },
+        { id: 't2', text: 'Target', x: 180, y: 120, width: 120, fontSize: 24 },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    fixture.componentInstance.scale = 1;
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      't1',
+    );
+    fixture.componentInstance.onDocumentPointerMove({
+      clientX: 94,
+      clientY: 10,
+      shiftKey: true,
+    } as PointerEvent);
+
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).x).toBe(80);
+  });
+
+  it('supports mobile drag snapping with the alignment toggle', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        { id: 't1', text: 'Dragged', x: 0, y: 0, width: 100, fontSize: 24 },
+        { id: 't2', text: 'Target', x: 180, y: 140, width: 120, fontSize: 24 },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    fixture.componentInstance.scale = 1;
+    const dragged = fixture.componentInstance.elements[0] as NoteTextElement;
+    const target = fixture.componentInstance.elements[1] as NoteTextElement;
+
+    (
+      fixture.nativeElement.querySelector(
+        'button[aria-label="Toggle alignment guides"]',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      't1',
+    );
+    fixture.componentInstance.onDocumentPointerMove({
+      clientX: 10,
+      clientY: 142,
+      shiftKey: false,
+    } as PointerEvent);
+    fixture.detectChanges();
+
+    expect((fixture.componentInstance.elements[0] as NoteTextElement).y).toBe(
+      fixture.componentInstance.elementContentTop(target) +
+        fixture.componentInstance.fontSizeFor(dragged),
+    );
+    expect(
+      fixture.nativeElement.querySelectorAll('[data-alignment-guide="true"]').length,
+    ).toBeGreaterThan(0);
+
+    fixture.componentInstance.onDocumentPointerUp({} as PointerEvent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-alignment-guide="true"]')).toBeNull();
   });
 
   it('creates a text element only when the text tool is active', async () => {

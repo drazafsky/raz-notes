@@ -59,6 +59,17 @@ interface ChecklistItemLocation {
   index: number;
   depth: number;
 }
+interface ElementCanvasBounds {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+interface DragAlignmentGuide {
+  orientation: 'vertical' | 'horizontal';
+  position: number;
+  snapped: boolean;
+}
 interface ChecklistReorderState {
   elementId: string;
   itemId: string;
@@ -105,6 +116,8 @@ const MAX_CANVAS_SCALE = 6;
 const FIT_CONTENT_PADDING = 72;
 const SAVE_NOTIFICATION_DURATION_MS = 3000;
 const CHECKLIST_REORDER_STEP_PX = 36;
+const GUIDE_EXTENT = 50000;
+const DRAG_ALIGNMENT_SNAP_THRESHOLD_PX = 12;
 
 @Component({
   selector: 'app-note-details-page',
@@ -143,6 +156,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   editingElementId: string | null = null;
   selectedChecklistItemId: string | null = null;
   editingChecklistItemId: string | null = null;
+  dragAlignmentEnabled = false;
+  dragAlignmentGuides: DragAlignmentGuide[] = [];
   activeTool: CanvasTool = 'selection';
   private pendingEditorSelection: 'all' | 'end' | null = null;
   viewX = 480;
@@ -280,6 +295,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.dragAlignmentGuides = [];
     this.interactionMode = 'canvas';
     this.interactionMoved = false;
     this.pointerStart = { x: event.clientX, y: event.clientY };
@@ -302,6 +318,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.dragAlignmentGuides = [];
     this.cleanupChecklistItemsOnUnselect(elementId);
     this.selectedElementId = elementId;
     if (isChecklistElement(element)) {
@@ -346,6 +363,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     event.stopPropagation();
+    this.dragAlignmentGuides = [];
     this.cleanupChecklistItemsOnUnselect(elementId);
     this.selectedElementId = elementId;
     this.selectedChecklistItemId = isChecklistElement(element)
@@ -409,17 +427,21 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     if (this.interactionMode === 'drag') {
+      const proposedX = this.elementStart.x + dx / this.scale;
+      const proposedY = this.elementStart.y + dy / this.scale;
+      const alignment = this.resolveDragAlignment(element, proposedX, proposedY, event.shiftKey);
+      this.dragAlignmentGuides = alignment.guides;
       this.updateElement(element.id, (currentElement) =>
         isChecklistElement(currentElement)
           ? normalizeChecklistElement({
               ...currentElement,
-              x: this.elementStart.x + dx / this.scale,
-              y: this.elementStart.y + dy / this.scale,
+              x: proposedX + alignment.deltaX,
+              y: proposedY + alignment.deltaY,
             })
           : normalizeNoteTextElement({
               ...currentElement,
-              x: this.elementStart.x + dx / this.scale,
-              y: this.elementStart.y + dy / this.scale,
+              x: proposedX + alignment.deltaX,
+              y: proposedY + alignment.deltaY,
             }),
       );
       return;
@@ -474,6 +496,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.activeElementId = null;
     this.interactionMoved = false;
     this.checklistReorderState = null;
+    this.dragAlignmentGuides = [];
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -575,13 +598,29 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return isTextElement(element) ? element.y - this.fontSizeFor(element) : element.y;
   }
 
+  guideExtentStart(): number {
+    return -GUIDE_EXTENT;
+  }
+
+  guideExtentEnd(): number {
+    return GUIDE_EXTENT;
+  }
+
   dismissSaveNotification(): void {
     this.saveNotification = null;
     this.clearSaveNotificationTimeout();
   }
 
+  toggleDragAlignment(): void {
+    this.dragAlignmentEnabled = !this.dragAlignmentEnabled;
+    if (!this.dragAlignmentEnabled && this.interactionMode !== 'drag') {
+      this.dragAlignmentGuides = [];
+    }
+  }
+
   setActiveTool(tool: CanvasTool): void {
     this.activeTool = tool;
+    this.dragAlignmentGuides = [];
     if (tool !== 'selection') {
       this.editingElementId = null;
       this.editingChecklistItemId = null;
@@ -734,6 +773,95 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.editingElementId = null;
     this.pendingEditorSelection = null;
     this.editorSelectionRange = null;
+  }
+
+  private resolveDragAlignment(
+    element: NoteElement,
+    proposedX: number,
+    proposedY: number,
+    shiftKey: boolean,
+  ): { deltaX: number; deltaY: number; guides: DragAlignmentGuide[] } {
+    if (!this.dragAlignmentEnabled && !shiftKey) {
+      return { deltaX: 0, deltaY: 0, guides: [] };
+    }
+
+    const candidateBounds = this.elements
+      .filter((candidate) => candidate.id !== element.id)
+      .map((candidate) => this.getElementCanvasBounds(candidate));
+    const verticalPositions = [
+      ...new Set(candidateBounds.flatMap((bounds) => [bounds.left, bounds.right])),
+    ];
+    const horizontalPositions = [
+      ...new Set(candidateBounds.flatMap((bounds) => [bounds.top, bounds.bottom])),
+    ];
+    const proposedBounds = this.getElementCanvasBounds(element, proposedX, proposedY);
+    const tolerance = DRAG_ALIGNMENT_SNAP_THRESHOLD_PX / this.scale;
+
+    const nearestVertical = this.findNearestGuideDelta(
+      [proposedBounds.left, proposedBounds.right],
+      verticalPositions,
+      tolerance,
+    );
+    const nearestHorizontal = this.findNearestGuideDelta(
+      [proposedBounds.top, proposedBounds.bottom],
+      horizontalPositions,
+      tolerance,
+    );
+
+    return {
+      deltaX: nearestVertical?.delta ?? 0,
+      deltaY: nearestHorizontal?.delta ?? 0,
+      guides: [
+        ...verticalPositions.map((position) => ({
+          orientation: 'vertical' as const,
+          position,
+          snapped: position === nearestVertical?.position,
+        })),
+        ...horizontalPositions.map((position) => ({
+          orientation: 'horizontal' as const,
+          position,
+          snapped: position === nearestHorizontal?.position,
+        })),
+      ],
+    };
+  }
+
+  private getElementCanvasBounds(
+    element: NoteElement,
+    x = element.x,
+    y = element.y,
+  ): ElementCanvasBounds {
+    const top = isTextElement(element) ? y - this.fontSizeFor(element) : y;
+    const height = this.estimateElementHeight(element);
+    return {
+      left: x,
+      right: x + element.width,
+      top,
+      bottom: top + height,
+    };
+  }
+
+  private findNearestGuideDelta(
+    movingEdges: number[],
+    guidePositions: number[],
+    tolerance: number,
+  ): { position: number; delta: number } | null {
+    let nearest: { position: number; delta: number } | null = null;
+
+    for (const guidePosition of guidePositions) {
+      for (const movingEdge of movingEdges) {
+        const delta = guidePosition - movingEdge;
+        if (Math.abs(delta) > tolerance) {
+          continue;
+        }
+
+        if (!nearest || Math.abs(delta) < Math.abs(nearest.delta)) {
+          nearest = { position: guidePosition, delta };
+        }
+      }
+    }
+
+    return nearest;
   }
 
   private updateElement(elementId: string, updater: (element: NoteElement) => NoteElement): void {
