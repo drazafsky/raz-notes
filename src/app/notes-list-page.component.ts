@@ -1,13 +1,15 @@
 import { Component, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
   computeNoteViewBox,
-  DEFAULT_TEXT_FONT_SIZE,
+  DEFAULT_TEXT_FONT_FAMILY,
   estimateTextElementHeight,
 } from './note-svg.utils';
+import { plainTextToRichHtml } from './rich-text.utils';
 import { AuthService } from './auth.service';
 import { NotesStateService } from './notes-state.service';
 import { Note, NoteTextElement } from './storage.service';
@@ -20,7 +22,8 @@ import { Note, NoteTextElement } from './storage.service';
 export class NotesListPageComponent {
   readonly auth = inject(AuthService);
   readonly notesState = inject(NotesStateService);
-  readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
+  private readonly sanitizer = inject(DomSanitizer);
+  readonly defaultTextFontFamily = DEFAULT_TEXT_FONT_FAMILY;
   passwordlessError = '';
   noteActionError = '';
 
@@ -64,5 +67,25 @@ export class NotesListPageComponent {
 
   estimateElementHeight(element: NoteTextElement): number {
     return estimateTextElementHeight(element);
+  }
+
+  richTextHtmlFor(element: NoteTextElement): string {
+    return element.richTextHtml ?? plainTextToRichHtml(element.text);
+  }
+
+  trustedRichTextHtmlFor(element: NoteTextElement): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(this.richTextHtmlFor(element));
+  }
+
+  fontSizeFor(element: NoteTextElement): number {
+    return element.fontSize;
+  }
+
+  fontFamilyFor(element: NoteTextElement): string {
+    return element.fontFamily ?? this.defaultTextFontFamily;
+  }
+
+  textColorFor(element: NoteTextElement): string {
+    return element.color ?? 'rgb(var(--theme-text) / 1)';
   }
 }

@@ -9,15 +9,18 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import {
   DEFAULT_TEXT_ELEMENT_WIDTH,
+  DEFAULT_TEXT_FONT_FAMILY,
   DEFAULT_TEXT_FONT_SIZE,
   estimateTextElementHeight,
   normalizeNoteTextElement,
 } from './note-svg.utils';
+import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
 import { Note, NoteTextElement } from './storage.service';
 import { NotesStateService } from './notes-state.service';
 
@@ -30,6 +33,7 @@ type CanvasTool = 'selection' | 'text';
 })
 export class NoteDetailsPageComponent implements AfterViewInit {
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notesState = inject(NotesStateService);
@@ -40,6 +44,20 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   noteTitle = '';
   elements: NoteTextElement[] = [];
   readonly textFontSize = DEFAULT_TEXT_FONT_SIZE;
+  readonly defaultTextFontFamily = DEFAULT_TEXT_FONT_FAMILY;
+  readonly defaultTextColor = '#111827';
+  readonly textToolbarWidth = 420;
+  readonly textToolbarHeight = 48;
+  readonly fontSizeOptions = [16, 20, 24, 32, 40, 48];
+  readonly fontFamilyOptions = [
+    { label: 'Sans', value: DEFAULT_TEXT_FONT_FAMILY },
+    { label: 'Serif', value: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif' },
+    {
+      label: 'Mono',
+      value:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    },
+  ];
   pendingFiles: File[] = [];
   selectedElementId: string | null = null;
   editingElementId: string | null = null;
@@ -58,6 +76,7 @@ export class NoteDetailsPageComponent implements AfterViewInit {
   private pointerStart = { x: 0, y: 0 };
   private viewStart = { x: 0, y: 0 };
   private elementStart = { x: 0, y: 0, width: DEFAULT_TEXT_ELEMENT_WIDTH, height: 0 };
+  private editorSelectionRange: Range | null = null;
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -332,6 +351,34 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     return estimateTextElementHeight(element);
   }
 
+  richTextHtmlFor(element: NoteTextElement): string {
+    return element.richTextHtml ?? plainTextToRichHtml(element.text);
+  }
+
+  trustedRichTextHtmlFor(element: NoteTextElement): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(this.richTextHtmlFor(element));
+  }
+
+  fontSizeFor(element: NoteTextElement): number {
+    return element.fontSize;
+  }
+
+  fontFamilyFor(element: NoteTextElement): string {
+    return element.fontFamily ?? this.defaultTextFontFamily;
+  }
+
+  textColorFor(element: NoteTextElement): string {
+    return element.color ?? 'rgb(var(--theme-text) / 1)';
+  }
+
+  toolbarTextColorValue(element: NoteTextElement): string {
+    return element.color ?? this.defaultTextColor;
+  }
+
+  textToolbarY(element: NoteTextElement): number {
+    return element.y - this.fontSizeFor(element) - this.textToolbarHeight - 18;
+  }
+
   selectedElement(): NoteTextElement | null {
     return this.selectedElementId ? (this.getElement(this.selectedElementId) ?? null) : null;
   }
@@ -340,11 +387,70 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.activeTool = tool;
     if (tool !== 'selection') {
       this.editingElementId = null;
+      this.editorSelectionRange = null;
     }
   }
 
   updateEditingText(elementId: string, text: string): void {
-    this.updateElement(elementId, { text });
+    this.updateElement(elementId, { text, richTextHtml: plainTextToRichHtml(text) });
+  }
+
+  updateTextStyle(elementId: string, patch: Partial<NoteTextElement>): void {
+    const applied = this.applyStyleToSelection(elementId, () => {
+      if (patch.color) {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('foreColor', false, patch.color);
+      }
+      if (patch.fontFamily) {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('fontName', false, patch.fontFamily);
+      }
+    });
+
+    if (!applied) {
+      this.updateElement(elementId, patch);
+    }
+  }
+
+  changeTextFontSize(elementId: string, value: string | number): void {
+    const fontSize = Number(value);
+    if (!Number.isFinite(fontSize)) {
+      return;
+    }
+
+    const nextFontSize = Math.max(12, fontSize);
+    const applied = this.applyStyleToSelection(elementId, () =>
+      this.wrapSelectionWithStyledSpan({ fontSize: `${nextFontSize}px` }),
+    );
+
+    if (!applied) {
+      this.updateElement(elementId, { fontSize: nextFontSize });
+    }
+  }
+
+  toggleTextFormat(elementId: string, format: 'bold' | 'italic' | 'underline'): void {
+    const element = this.getElement(elementId);
+    if (!element) {
+      return;
+    }
+
+    switch (format) {
+      case 'bold':
+        if (!this.applyCommandToSelection(elementId, 'bold')) {
+          this.updateElement(elementId, { bold: !element.bold });
+        }
+        return;
+      case 'italic':
+        if (!this.applyCommandToSelection(elementId, 'italic')) {
+          this.updateElement(elementId, { italic: !element.italic });
+        }
+        return;
+      case 'underline':
+        if (!this.applyCommandToSelection(elementId, 'underline')) {
+          this.updateElement(elementId, { underline: !element.underline });
+        }
+        return;
+    }
   }
 
   private addTextElement(x: number, y: number): void {
@@ -366,22 +472,44 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     this.selectedElementId = elementId;
   }
 
+  onInlineEditorInput(elementId: string, event: Event): void {
+    const target = event.target;
+    if (!(target instanceof HTMLDivElement)) {
+      return;
+    }
+
+    this.syncElementFromEditor(elementId, target);
+  }
+
+  onInlineEditorKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.execCommand('insertLineBreak');
+    }
+  }
+
   onInlineEditorFocus(elementId: string, event: FocusEvent): void {
     if (this.editingElementId !== elementId) {
       return;
     }
 
     const input = event.target;
-    if (!(input instanceof HTMLTextAreaElement)) {
+    if (!(input instanceof HTMLDivElement)) {
       return;
     }
 
     this.applyPendingEditorSelection(input);
   }
 
-  stopEditingElement(): void {
+  stopEditingElement(event?: FocusEvent): void {
+    const nextTarget = event?.relatedTarget;
+    if (nextTarget instanceof HTMLElement && nextTarget.closest('[data-text-toolbar="true"]')) {
+      return;
+    }
+
     this.editingElementId = null;
     this.pendingEditorSelection = null;
+    this.editorSelectionRange = null;
   }
 
   private updateElement(elementId: string, patch: Partial<NoteTextElement>): void {
@@ -420,6 +548,24 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     return `text-editor-${elementId}`;
   }
 
+  @HostListener('document:selectionchange')
+  onDocumentSelectionChange(): void {
+    if (!this.editingElementId) {
+      return;
+    }
+
+    const editor = this.getInlineEditorElement(this.editingElementId);
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (editor.contains(range.commonAncestorContainer)) {
+      this.editorSelectionRange = range.cloneRange();
+    }
+  }
+
   private startEditingElement(elementId: string, selection: 'all' | 'end' = 'end'): void {
     if (!this.getElement(elementId)) {
       return;
@@ -431,26 +577,34 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     queueMicrotask(() => {
       this.changeDetectorRef.detectChanges();
       const input = document.getElementById(this.inlineEditorId(elementId));
-      if (input instanceof HTMLTextAreaElement) {
+      if (input instanceof HTMLDivElement) {
+        const element = this.getElement(elementId);
+        input.innerHTML = element ? this.richTextHtmlFor(element) : '';
         input.focus();
         this.applyPendingEditorSelection(input);
       }
     });
   }
 
-  private applyPendingEditorSelection(input: HTMLTextAreaElement): void {
+  private applyPendingEditorSelection(input: HTMLDivElement): void {
     if (this.pendingEditorSelection === null) {
       return;
     }
 
     const selection = this.pendingEditorSelection;
     const applySelection = () => {
-      if (selection === 'all') {
-        input.select();
-        input.setSelectionRange(0, input.value.length);
-      } else {
-        input.setSelectionRange(input.value.length, input.value.length);
+      const domSelection = window.getSelection();
+      if (!domSelection) {
+        return;
       }
+      const range = document.createRange();
+      range.selectNodeContents(input);
+      if (selection === 'end') {
+        range.collapse(false);
+      }
+      domSelection.removeAllRanges();
+      domSelection.addRange(range);
+      this.editorSelectionRange = range.cloneRange();
     };
 
     applySelection();
@@ -463,6 +617,111 @@ export class NoteDetailsPageComponent implements AfterViewInit {
     }
 
     this.pendingEditorSelection = null;
+  }
+
+  private getInlineEditorElement(elementId: string): HTMLDivElement | null {
+    const editor = document.getElementById(this.inlineEditorId(elementId));
+    return editor instanceof HTMLDivElement ? editor : null;
+  }
+
+  private syncElementFromEditor(elementId: string, editor: HTMLDivElement): void {
+    this.updateElement(elementId, {
+      text: richHtmlToPlainText(editor.innerHTML),
+      richTextHtml: editor.innerHTML,
+    });
+  }
+
+  private applyCommandToSelection(
+    elementId: string,
+    command: 'bold' | 'italic' | 'underline',
+  ): boolean {
+    return this.applyStyleToSelection(elementId, () => {
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command);
+    });
+  }
+
+  private applyStyleToSelection(
+    elementId: string,
+    applySelectionCommand: (editor: HTMLDivElement) => void,
+  ): boolean {
+    const editor = this.getInlineEditorElement(elementId);
+    if (!editor || !this.restoreEditorSelection(editor)) {
+      return false;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return false;
+    }
+
+    applySelectionCommand(editor);
+    this.syncElementFromEditor(elementId, editor);
+    this.captureEditorSelection(editor);
+    return true;
+  }
+
+  private wrapSelectionWithStyledSpan(styles: Partial<CSSStyleDeclaration>): void {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (range.collapsed) {
+      return;
+    }
+
+    const span = document.createElement('span');
+    Object.assign(span.style, styles);
+
+    try {
+      range.surroundContents(span);
+    } catch {
+      const contents = range.extractContents();
+      span.append(contents);
+      range.insertNode(span);
+    }
+
+    selection.removeAllRanges();
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(span);
+    selection.addRange(nextRange);
+    this.editorSelectionRange = nextRange.cloneRange();
+  }
+
+  private restoreEditorSelection(editor: HTMLDivElement): boolean {
+    const selection = window.getSelection();
+    if (!selection) {
+      return false;
+    }
+
+    editor.focus();
+    if (this.editorSelectionRange) {
+      selection.removeAllRanges();
+      selection.addRange(this.editorSelectionRange);
+      return true;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    this.editorSelectionRange = range.cloneRange();
+    return true;
+  }
+
+  private captureEditorSelection(editor: HTMLDivElement): void {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (editor.contains(range.commonAncestorContainer)) {
+      this.editorSelectionRange = range.cloneRange();
+    }
   }
 
   private pointerToCanvas(event: PointerEvent | WheelEvent): { x: number; y: number } {

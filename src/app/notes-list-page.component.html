@@ -129,18 +129,22 @@
                 @for (element of note.elements; track element.id) {
                   <foreignObject
                     [attr.x]="element.x"
-                    [attr.y]="element.y - textFontSize"
+                    [attr.y]="element.y - fontSizeFor(element)"
                     [attr.width]="element.width"
                     [attr.height]="estimateElementHeight(element)"
                   >
                     <div
                       xmlns="http://www.w3.org/1999/xhtml"
                       class="whitespace-pre-wrap break-words text-theme-text"
-                      [style.fontSize.px]="textFontSize"
+                      [style.color]="textColorFor(element)"
+                      [style.fontFamily]="fontFamilyFor(element)"
+                      [style.fontSize.px]="fontSizeFor(element)"
                       [style.lineHeight]="1.35"
-                    >
-                      {{ element.text }}
-                    </div>
+                      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+                      [style.fontWeight]="element.bold ? '700' : '400'"
+                      [style.textDecoration]="element.underline ? 'underline' : 'none'"
+                      [innerHTML]="trustedRichTextHtmlFor(element)"
+                    ></div>
                   </foreignObject>
                 }
               }

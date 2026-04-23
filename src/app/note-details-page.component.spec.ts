@@ -132,7 +132,7 @@ describe('NoteDetailsPageComponent', () => {
 
   it('clicking rendered text enters edit mode through DOM events', async () => {
     const fixture = await createComponent();
-    const textElement = fixture.nativeElement.querySelector('foreignObject div');
+    const textElement = fixture.nativeElement.querySelector('foreignObject div.select-none');
 
     textElement.dispatchEvent(
       new PointerEvent('pointerdown', {
@@ -160,7 +160,6 @@ describe('NoteDetailsPageComponent', () => {
   it('creates a text element only when the text tool is active', async () => {
     const fixture = await createComponent();
     const initialCount = fixture.componentInstance.elements.length;
-    const selectSpy = spyOn(HTMLTextAreaElement.prototype, 'select').and.callThrough();
 
     fixture.componentInstance.setActiveTool('text');
     fixture.componentInstance.onCanvasPointerDown({
@@ -177,15 +176,15 @@ describe('NoteDetailsPageComponent', () => {
 
     const editor = fixture.nativeElement.querySelector(
       `#${fixture.componentInstance.inlineEditorId(fixture.componentInstance.elements.at(-1)!.id)}`,
-    ) as HTMLTextAreaElement;
+    ) as HTMLDivElement;
 
     expect(fixture.componentInstance.elements.length).toBe(initialCount + 1);
     expect(fixture.componentInstance.activeTool).toBe('selection');
     expect(fixture.componentInstance.editingElementId).toBe(
       fixture.componentInstance.elements.at(-1)!.id,
     );
-    expect(selectSpy).toHaveBeenCalled();
     expect(document.activeElement).toBe(editor);
+    expect(window.getSelection()?.toString()).toContain('New text');
   });
 
   it('does not create a text element when the selection tool is active', async () => {
@@ -229,6 +228,79 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.updateEditingText('t1', 'Line 1\nLine 2');
 
     expect(fixture.componentInstance.elements[0].text).toBe('Line 1\nLine 2');
+  });
+
+  it('preserves rich text formatting when the element is not being edited', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      elements: [
+        {
+          id: 't1',
+          text: 'Styled body',
+          richTextHtml:
+            '<span style="color: rgb(255, 0, 0); font-size: 32px; text-decoration: underline;">Styled</span> body',
+          x: 0,
+          y: 0,
+          width: 180,
+          fontSize: 24,
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+    fixture.componentInstance.selectedElementId = 't1';
+    fixture.componentInstance.editingElementId = null;
+    fixture.detectChanges();
+
+    const textNode = fixture.nativeElement.querySelector('foreignObject div.select-none');
+
+    expect(textNode.innerHTML).toContain('font-size: 32px');
+    expect(textNode.innerHTML).toContain('text-decoration: underline');
+    expect(textNode.innerHTML).toContain('color: rgb(255, 0, 0)');
+  });
+
+  it('shows a toolbar for the selected text element and updates its styling', async () => {
+    const fixture = await createComponent();
+    fixture.componentInstance.selectedElementId = 't1';
+    fixture.detectChanges();
+
+    const fontFamilyControl = fixture.nativeElement.querySelector('#font-family-t1');
+    const fontSizeControl = fixture.nativeElement.querySelector('#font-size-t1');
+    const textColorControl = fixture.nativeElement.querySelector('#text-color-t1');
+    const boldButton = fixture.nativeElement.querySelector('button[aria-label="Bold"]');
+    const italicButton = fixture.nativeElement.querySelector('button[aria-label="Italic"]');
+    const underlineButton = fixture.nativeElement.querySelector('button[aria-label="Underline"]');
+
+    fixture.componentInstance.updateTextStyle('t1', {
+      fontFamily: fixture.componentInstance.fontFamilyOptions[1].value,
+      color: '#ff0000',
+    });
+    fixture.componentInstance.changeTextFontSize('t1', 32);
+    fixture.componentInstance.toggleTextFormat('t1', 'bold');
+    fixture.componentInstance.toggleTextFormat('t1', 'italic');
+    fixture.componentInstance.toggleTextFormat('t1', 'underline');
+    fixture.detectChanges();
+
+    const textNode = fixture.nativeElement.querySelector('foreignObject div.select-none');
+
+    expect(fontFamilyControl).toBeTruthy();
+    expect(fontSizeControl).toBeTruthy();
+    expect(textColorControl).toBeTruthy();
+    expect(boldButton).toBeTruthy();
+    expect(italicButton).toBeTruthy();
+    expect(underlineButton).toBeTruthy();
+    expect(fixture.componentInstance.elements[0].fontSize).toBe(32);
+    expect(fixture.componentInstance.elements[0].color).toBe('#ff0000');
+    expect(fixture.componentInstance.elements[0].fontFamily).toBe(
+      fixture.componentInstance.fontFamilyOptions[1].value,
+    );
+    expect(fixture.componentInstance.elements[0].bold).toBeTrue();
+    expect(fixture.componentInstance.elements[0].italic).toBeTrue();
+    expect(fixture.componentInstance.elements[0].underline).toBeTrue();
+    expect(textNode.style.fontSize).toBe('32px');
+    expect(textNode.style.fontWeight).toBe('700');
+    expect(textNode.style.fontStyle).toBe('italic');
+    expect(textNode.style.textDecoration).toContain('underline');
   });
 
   it('resizes the selected element without changing its font size', async () => {
@@ -285,7 +357,7 @@ describe('NoteDetailsPageComponent', () => {
     fixture.componentInstance.selectedElementId = 't1';
     fixture.detectChanges();
     const selectionRect = fixture.nativeElement.querySelector('svg g g rect');
-    const textNode = fixture.nativeElement.querySelector('foreignObject div');
+    const textNode = fixture.nativeElement.querySelector('foreignObject div.select-none');
 
     expect(fixture.nativeElement.querySelector('button[aria-label="Selection tool"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('button[aria-label="Text tool"]')).toBeTruthy();
@@ -293,6 +365,5 @@ describe('NoteDetailsPageComponent', () => {
     expect(textNode.style.cursor).toBe('move');
     expect(fixture.nativeElement.textContent).not.toContain('Selected text');
     expect(fixture.nativeElement.textContent).not.toContain('Width');
-    expect(fixture.nativeElement.textContent).not.toContain('Font size');
   });
 });
