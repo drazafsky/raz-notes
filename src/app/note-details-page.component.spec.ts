@@ -124,13 +124,19 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.viewY).toBeCloseTo(300 - bounds.centerY * expectedScale);
   });
 
-  it('deletes a note and navigates back to the list', async () => {
+  it('opens a confirmation modal before deleting a note and navigates after confirmation', async () => {
     const notesState = new MockNotesStateService();
     const fixture = await createComponent(notesState);
     const router = TestBed.inject(Router);
     spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
 
-    await fixture.componentInstance.deleteNote();
+    fixture.componentInstance.requestDeleteNote();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Delete note?');
+    expect(notesState.deleteNote).not.toHaveBeenCalled();
+
+    await fixture.componentInstance.confirmDeleteNote();
 
     expect(notesState.deleteNote).toHaveBeenCalledWith(7);
     expect(router.navigate).toHaveBeenCalledWith(['/notes']);

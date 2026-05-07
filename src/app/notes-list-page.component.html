@@ -36,6 +36,17 @@
   </div>
 </section>
 
+@if (pendingDeleteNoteId !== null) {
+  <app-confirmation-modal
+    dialogId="delete-note-list"
+    title="Delete note?"
+    [message]="pendingDeleteMessage()"
+    confirmLabel="Delete note"
+    (cancelled)="cancelDeleteNote()"
+    (confirmed)="confirmDeleteNote()"
+  ></app-confirmation-modal>
+}
+
 <section
   class="mb-4 rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
 >
@@ -125,7 +136,7 @@
               </button>
               <button
                 type="button"
-                (click)="deleteNote(note.id)"
+                (click)="requestDeleteNote(note)"
                 class="rounded border border-theme-accent-border px-3 py-1.5 text-sm text-theme-accent hover:bg-theme-accent-soft focus:outline-none focus:ring-2 focus:ring-theme-accent"
               >
                 Delete

@@ -18,6 +18,7 @@ import { AttachmentCanvasElementComponent } from './canvas-elements/attachment-c
 import { AttachmentCanvasToolComponent } from './canvas-tools/attachment-canvas-tool.component';
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
 import { AttachmentCanvasToolService } from './attachment-canvas-tool.service';
+import { ConfirmationModalComponent } from './confirmation-modal.component';
 import type {
   AttachmentCanvasElementController,
   ChecklistCanvasElementController,
@@ -142,6 +143,7 @@ const DRAG_ALIGNMENT_SNAP_THRESHOLD_PX = 12;
     DatePipe,
     RouterLink,
     AttachmentViewerComponent,
+    ConfirmationModalComponent,
     SelectionCanvasToolComponent,
     TextCanvasToolComponent,
     ChecklistCanvasToolComponent,
@@ -174,6 +176,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   note: Note | null = null;
   noteError = '';
   saveNotification: SaveNotification | null = null;
+  showDeleteConfirmation = false;
   isNewNote = false;
   noteTitle = '';
   elements: NoteElement[] = [];
@@ -368,13 +371,33 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     this.addAttachmentFiles(files, point);
   }
 
-  async deleteNote(): Promise<void> {
+  requestDeleteNote(): void {
+    this.noteError = '';
+    this.showDeleteConfirmation = true;
+  }
+
+  cancelDeleteNote(): void {
+    this.showDeleteConfirmation = false;
+  }
+
+  deleteConfirmationMessage(): string {
+    return this.note ? `Delete "${this.note.title}"? This cannot be undone.` : '';
+  }
+
+  async confirmDeleteNote(): Promise<void> {
     if (!this.note) {
       return;
     }
 
-    await this.notesState.deleteNote(this.note.id);
-    void this.router.navigate(['/notes']);
+    this.noteError = '';
+
+    try {
+      await this.notesState.deleteNote(this.note.id);
+      this.cancelDeleteNote();
+      void this.router.navigate(['/notes']);
+    } catch (error) {
+      this.noteError = error instanceof Error ? error.message : 'Something went wrong.';
+    }
   }
 
   async exportNote(): Promise<void> {

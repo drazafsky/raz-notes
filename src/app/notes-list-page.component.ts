@@ -4,6 +4,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
+import { ConfirmationModalComponent } from './confirmation-modal.component';
 import {
   ChecklistLayoutRow,
   computeNoteViewBox,
@@ -29,7 +30,7 @@ import {
 
 @Component({
   selector: 'app-notes-list-page',
-  imports: [DatePipe, RouterLink, AttachmentViewerComponent],
+  imports: [DatePipe, RouterLink, AttachmentViewerComponent, ConfirmationModalComponent],
   templateUrl: './notes-list-page.component.html',
 })
 export class NotesListPageComponent {
@@ -39,6 +40,8 @@ export class NotesListPageComponent {
   readonly defaultTextFontFamily = DEFAULT_TEXT_FONT_FAMILY;
   passwordlessError = '';
   noteActionError = '';
+  pendingDeleteNoteId: number | null = null;
+  pendingDeleteNoteTitle = '';
 
   async exportNote(noteId: number): Promise<void> {
     this.noteActionError = '';
@@ -91,11 +94,31 @@ export class NotesListPageComponent {
     }
   }
 
-  async deleteNote(noteId: number): Promise<void> {
+  requestDeleteNote(note: Note): void {
+    this.noteActionError = '';
+    this.pendingDeleteNoteId = note.id;
+    this.pendingDeleteNoteTitle = note.title;
+  }
+
+  cancelDeleteNote(): void {
+    this.pendingDeleteNoteId = null;
+    this.pendingDeleteNoteTitle = '';
+  }
+
+  pendingDeleteMessage(): string {
+    return `Delete "${this.pendingDeleteNoteTitle}"? This cannot be undone.`;
+  }
+
+  async confirmDeleteNote(): Promise<void> {
+    if (this.pendingDeleteNoteId === null) {
+      return;
+    }
+
     this.noteActionError = '';
 
     try {
-      await this.notesState.deleteNote(noteId);
+      await this.notesState.deleteNote(this.pendingDeleteNoteId);
+      this.cancelDeleteNote();
     } catch (error) {
       this.noteActionError = error instanceof Error ? error.message : 'Something went wrong.';
     }

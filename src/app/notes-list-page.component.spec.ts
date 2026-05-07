@@ -108,7 +108,7 @@ describe('NotesListPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Delete');
   });
 
-  it('deletes a note from the list page', async () => {
+  it('opens a confirmation modal before deleting a note from the list page', async () => {
     const notesState = new MockNotesStateService();
     await TestBed.configureTestingModule({
       imports: [NotesListPageComponent],
@@ -128,10 +128,16 @@ describe('NotesListPageComponent', () => {
 
     const fixture = TestBed.createComponent(NotesListPageComponent);
     const component = fixture.componentInstance;
+    component.requestDeleteNote(notesState.notes()[0]);
+    fixture.detectChanges();
 
-    await component.deleteNote(1);
+    expect(fixture.nativeElement.textContent).toContain('Delete note?');
+    expect(notesState.deleteNote).not.toHaveBeenCalled();
+
+    await component.confirmDeleteNote();
 
     expect(notesState.deleteNote).toHaveBeenCalledWith(1);
+    expect(component.pendingDeleteNoteId).toBeNull();
   });
 
   it('exports a note from the list page', async () => {
