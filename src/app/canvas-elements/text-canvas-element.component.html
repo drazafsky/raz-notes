@@ -1,0 +1,200 @@
+@if (controller.selectedElementId === element.id) {
+  <svg:foreignObject
+    [attr.x]="element.x - 8"
+    [attr.y]="controller.textToolbarY(element)"
+    [attr.width]="controller.textToolbarWidth"
+    [attr.height]="controller.textToolbarHeight"
+  >
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      data-text-toolbar="true"
+      class="flex h-full items-center gap-1 rounded-lg border border-theme-border bg-theme-surface px-2 py-1 shadow-lg shadow-theme-brand/15"
+      (pointerdown)="$event.stopPropagation()"
+    >
+      <label class="sr-only" [for]="'font-family-' + element.id">Font family</label>
+      <select
+        [id]="'font-family-' + element.id"
+        [name]="'font-family-' + element.id"
+        [ngModel]="controller.fontFamilyFor(element)"
+        (ngModelChange)="controller.updateTextStyle(element.id, { fontFamily: $event })"
+        class="h-8 min-w-24 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+      >
+        @for (option of controller.fontFamilyOptions; track option.value) {
+          <option [ngValue]="option.value">{{ option.label }}</option>
+        }
+      </select>
+
+      <label class="sr-only" [for]="'font-size-' + element.id">Font size</label>
+      <select
+        [id]="'font-size-' + element.id"
+        [name]="'font-size-' + element.id"
+        [ngModel]="controller.fontSizeFor(element)"
+        (ngModelChange)="controller.changeTextFontSize(element.id, $event)"
+        class="h-8 w-20 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+      >
+        @for (size of controller.fontSizeOptions; track size) {
+          <option [ngValue]="size">{{ size }} px</option>
+        }
+      </select>
+
+      <label class="sr-only" [for]="'text-color-' + element.id">Text color</label>
+      <input
+        [id]="'text-color-' + element.id"
+        [name]="'text-color-' + element.id"
+        type="color"
+        [ngModel]="controller.toolbarTextColorValue(element)"
+        (ngModelChange)="controller.changeTextColor(element.id, $event)"
+        class="h-8 w-10 cursor-pointer rounded border border-theme-border bg-theme-bg p-1"
+      />
+
+      <div class="flex items-center gap-1">
+        @for (color of controller.quickColorOptions; track color) {
+          <button
+            type="button"
+            [attr.aria-label]="'Quick select color ' + color"
+            class="h-6 w-6 rounded-full border border-theme-border"
+            [style.backgroundColor]="color"
+            (click)="controller.changeTextColor(element.id, color)"
+          ></button>
+        }
+      </div>
+
+      <button
+        type="button"
+        aria-label="Bold"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm font-bold"
+        [class.border-theme-accent]="element.bold"
+        [class.bg-theme-brand-soft]="element.bold"
+        [class.text-theme-accent]="element.bold"
+        [class.border-theme-border]="!element.bold"
+        [class.text-theme-text]="!element.bold"
+        (click)="controller.toggleTextFormat(element.id, 'bold')"
+      >
+        B
+      </button>
+
+      <button
+        type="button"
+        aria-label="Italic"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm italic"
+        [class.border-theme-accent]="element.italic"
+        [class.bg-theme-brand-soft]="element.italic"
+        [class.text-theme-accent]="element.italic"
+        [class.border-theme-border]="!element.italic"
+        [class.text-theme-text]="!element.italic"
+        (click)="controller.toggleTextFormat(element.id, 'italic')"
+      >
+        I
+      </button>
+
+      <button
+        type="button"
+        aria-label="Underline"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm underline"
+        [class.border-theme-accent]="element.underline"
+        [class.bg-theme-brand-soft]="element.underline"
+        [class.text-theme-accent]="element.underline"
+        [class.border-theme-border]="!element.underline"
+        [class.text-theme-text]="!element.underline"
+        (click)="controller.toggleTextFormat(element.id, 'underline')"
+      >
+        U
+      </button>
+
+      <button
+        type="button"
+        aria-label="Strikethrough"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm line-through"
+        [class.border-theme-border]="true"
+        [class.text-theme-text]="true"
+        (click)="controller.applyInlineTextCommand(element.id, 'strikeThrough')"
+      >
+        S
+      </button>
+
+      <button
+        type="button"
+        aria-label="Subscript"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm"
+        [class.border-theme-border]="true"
+        [class.text-theme-text]="true"
+        (click)="controller.applyInlineTextCommand(element.id, 'subscript')"
+      >
+        X<sub>2</sub>
+      </button>
+
+      <button
+        type="button"
+        aria-label="Superscript"
+        class="inline-flex h-8 w-8 items-center justify-center rounded border text-sm"
+        [class.border-theme-border]="true"
+        [class.text-theme-text]="true"
+        (click)="controller.applyInlineTextCommand(element.id, 'superscript')"
+      >
+        X<sup>2</sup>
+      </button>
+    </div>
+  </svg:foreignObject>
+}
+
+<svg:rect
+  [attr.x]="element.x - 12"
+  [attr.y]="controller.elementContentTop(element) - 10"
+  [attr.width]="element.width + 24"
+  [attr.height]="controller.estimateElementHeight(element) + 20"
+  pointer-events="all"
+  rx="12"
+  fill="transparent"
+  stroke="rgb(var(--theme-accent) / 0.7)"
+  [attr.stroke-dasharray]="controller.selectedElementId === element.id ? '8 6' : null"
+  [attr.stroke-width]="controller.selectedElementId === element.id ? 1.5 / controller.scale : 0"
+  [style.cursor]="controller.activeTool === 'selection' ? 'move' : 'default'"
+  (pointerdown)="controller.onTextPointerDown($event, element.id)"
+  (dblclick)="controller.onTextDoubleClick($event, element.id)"
+/>
+
+<svg:foreignObject
+  [attr.x]="element.x"
+  [attr.y]="element.y - controller.fontSizeFor(element)"
+  [attr.width]="element.width"
+  [attr.height]="controller.estimateElementHeight(element)"
+>
+  @if (controller.editingElementId === element.id) {
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      [id]="controller.inlineEditorId(element.id)"
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      (input)="controller.onInlineEditorInput(element.id, $event)"
+      (keydown)="controller.onInlineEditorKeyDown($event)"
+      (pointerdown)="controller.onInlineEditorPointerDown($event, element.id)"
+      (focus)="controller.onInlineEditorFocus(element.id, $event)"
+      (blur)="controller.stopEditingElement($event)"
+      class="h-full w-full resize-none overflow-hidden border border-theme-accent bg-theme-bg/95 px-2 py-1 text-theme-text outline-none"
+      [style.color]="controller.textColorFor(element)"
+      [style.fontFamily]="controller.fontFamilyFor(element)"
+      [style.fontSize.px]="controller.fontSizeFor(element)"
+      [style.lineHeight]="1.35"
+      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+      [style.fontWeight]="element.bold ? '700' : '400'"
+      [style.textDecoration]="element.underline ? 'underline' : 'none'"
+    ></div>
+  } @else {
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      class="select-none whitespace-pre-wrap break-words text-theme-text"
+      [style.color]="controller.textColorFor(element)"
+      [style.fontFamily]="controller.fontFamilyFor(element)"
+      [style.fontSize.px]="controller.fontSizeFor(element)"
+      [style.lineHeight]="1.35"
+      [style.cursor]="controller.activeTool === 'selection' ? 'move' : 'default'"
+      [style.fontStyle]="element.italic ? 'italic' : 'normal'"
+      [style.fontWeight]="element.bold ? '700' : '400'"
+      [style.textDecoration]="element.underline ? 'underline' : 'none'"
+      (pointerdown)="controller.onTextPointerDown($event, element.id)"
+      (dblclick)="controller.onTextDoubleClick($event, element.id)"
+      [innerHTML]="controller.trustedRichTextHtmlFor(element)"
+    ></div>
+  }
+</svg:foreignObject>

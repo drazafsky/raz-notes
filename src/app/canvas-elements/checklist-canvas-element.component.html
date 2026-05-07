@@ -1,0 +1,306 @@
+@if (controller.selectedElementId === element.id) {
+  <svg:foreignObject
+    [attr.x]="element.x - 8"
+    [attr.y]="controller.checklistToolbarY(element)"
+    [attr.width]="controller.checklistToolbarWidth"
+    [attr.height]="controller.checklistToolbarHeight"
+  >
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      data-checklist-toolbar="true"
+      class="flex h-full items-center gap-1 rounded-lg border border-theme-border bg-theme-surface px-2 py-1 shadow-lg shadow-theme-brand/15"
+      (pointerdown)="$event.stopPropagation()"
+    >
+      <button
+        type="button"
+        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+        [disabled]="!controller.selectedChecklistItemId"
+        (click)="controller.addChecklistSiblingFromToolbar()"
+      >
+        Add sibling
+      </button>
+      <button
+        type="button"
+        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+        [disabled]="!controller.selectedChecklistItemId"
+        (click)="controller.addChecklistChildFromToolbar()"
+      >
+        Add child
+      </button>
+      <label class="sr-only" [for]="'checklist-due-date-' + element.id">Due date</label>
+      <input
+        [id]="'checklist-due-date-' + element.id"
+        [name]="'checklist-due-date-' + element.id"
+        type="date"
+        [ngModel]="controller.activeChecklistDueDate()"
+        (ngModelChange)="controller.updateActiveChecklistDueDate($event)"
+        class="h-8 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+      />
+      <button
+        type="button"
+        class="rounded border border-theme-border px-2 py-1 text-xs text-theme-text"
+        [disabled]="!controller.activeChecklistDueDate()"
+        (click)="controller.clearActiveChecklistDueDate()"
+      >
+        Clear date
+      </button>
+    </div>
+  </svg:foreignObject>
+}
+
+<svg:rect
+  [attr.x]="element.x - 12"
+  [attr.y]="controller.elementContentTop(element) - 10"
+  [attr.width]="element.width + 24"
+  [attr.height]="controller.estimateElementHeight(element) + 20"
+  pointer-events="visibleStroke"
+  rx="12"
+  fill="transparent"
+  stroke="rgb(var(--theme-accent) / 0.7)"
+  [attr.stroke-dasharray]="controller.selectedElementId === element.id ? '8 6' : null"
+  [attr.stroke-width]="controller.selectedElementId === element.id ? 1.5 / controller.scale : 0"
+  [style.cursor]="controller.activeTool === 'selection' ? 'move' : 'default'"
+  (pointerdown)="controller.onTextPointerDown($event, element.id)"
+  (dblclick)="controller.onTextDoubleClick($event, element.id)"
+/>
+
+<svg:foreignObject
+  [attr.x]="element.x"
+  [attr.y]="element.y"
+  [attr.width]="element.width"
+  [attr.height]="controller.estimateElementHeight(element)"
+>
+  <div
+    xmlns="http://www.w3.org/1999/xhtml"
+    [id]="controller.checklistContainerId(element.id)"
+    class="h-full w-full rounded border border-transparent bg-transparent px-3 py-2 text-sm text-theme-text"
+    (pointerdown)="controller.onChecklistContainerPointerDown($event, element.id)"
+    (pointerup)="controller.onChecklistContainerPointerUp($event, element.id)"
+  >
+    <div class="flex flex-col gap-1">
+      @for (row of controller.checklistRowsFor(element); track row.item.id) {
+        <div
+          [attr.data-checklist-item-id]="row.item.id"
+          class="rounded-md border px-2 py-1"
+          [style.marginLeft.px]="row.depth * controller.checklistIndentPx"
+          [class.border-theme-accent]="controller.checklistItemIsSelected(element.id, row.item.id)"
+          [class.bg-theme-brand-soft]="controller.checklistItemIsSelected(element.id, row.item.id)"
+          [class.border-transparent]="!controller.checklistItemIsSelected(element.id, row.item.id)"
+        >
+          <div class="flex items-start gap-2">
+            <button
+              type="button"
+              aria-label="Reorder checklist item"
+              class="mt-1 inline-flex h-7 w-7 items-center justify-center rounded border border-theme-border text-theme-muted"
+              (pointerdown)="
+                controller.onChecklistReorderHandlePointerDown($event, element.id, row.item.id)
+              "
+            >
+              <i class="fa-solid fa-grip-lines" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              [attr.aria-label]="controller.checklistStateLabel(row.item.state)"
+              class="mt-1 inline-flex h-7 w-7 items-center justify-center rounded border border-theme-border text-theme-text"
+              (click)="controller.cycleChecklistItemState(element.id, row.item.id)"
+            >
+              <span aria-hidden="true">{{ controller.checklistStateSymbol(row.item.state) }}</span>
+            </button>
+            <div class="min-w-0 flex-1">
+              @if (controller.checklistItemIsEditing(element.id, row.item.id)) {
+                <div
+                  xmlns="http://www.w3.org/1999/xhtml"
+                  data-checklist-item-toolbar="true"
+                  class="mb-2 flex flex-wrap items-center gap-1 rounded-lg border border-theme-border bg-theme-surface px-2 py-1 shadow-sm shadow-theme-brand/10"
+                  (pointerdown)="$event.stopPropagation()"
+                >
+                  <label
+                    class="sr-only"
+                    [for]="'checklist-font-family-' + element.id + '-' + row.item.id"
+                    >Checklist item font family</label
+                  >
+                  <select
+                    [id]="'checklist-font-family-' + element.id + '-' + row.item.id"
+                    [name]="'checklist-font-family-' + element.id + '-' + row.item.id"
+                    [ngModel]="controller.checklistToolbarFontFamilyValue()"
+                    (ngModelChange)="
+                      controller.changeChecklistItemFontFamily(element.id, row.item.id, $event)
+                    "
+                    class="h-8 min-w-24 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+                  >
+                    @for (option of controller.fontFamilyOptions; track option.value) {
+                      <option [ngValue]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+
+                  <label
+                    class="sr-only"
+                    [for]="'checklist-font-size-' + element.id + '-' + row.item.id"
+                    >Checklist item font size</label
+                  >
+                  <select
+                    [id]="'checklist-font-size-' + element.id + '-' + row.item.id"
+                    [name]="'checklist-font-size-' + element.id + '-' + row.item.id"
+                    [ngModel]="controller.checklistToolbarFontSizeValue()"
+                    (ngModelChange)="
+                      controller.changeChecklistItemFontSize(element.id, row.item.id, $event)
+                    "
+                    class="h-8 w-20 rounded border border-theme-border bg-theme-bg px-2 text-xs text-theme-text outline-none"
+                  >
+                    @for (size of controller.fontSizeOptions; track size) {
+                      <option [ngValue]="size">{{ size }} px</option>
+                    }
+                  </select>
+
+                  <label
+                    class="sr-only"
+                    [for]="'checklist-text-color-' + element.id + '-' + row.item.id"
+                    >Checklist item text color</label
+                  >
+                  <input
+                    [id]="'checklist-text-color-' + element.id + '-' + row.item.id"
+                    [name]="'checklist-text-color-' + element.id + '-' + row.item.id"
+                    type="color"
+                    [ngModel]="controller.checklistToolbarTextColorValue()"
+                    (ngModelChange)="
+                      controller.changeChecklistItemColor(element.id, row.item.id, $event)
+                    "
+                    class="h-8 w-10 cursor-pointer rounded border border-theme-border bg-theme-bg p-1"
+                  />
+
+                  <div class="flex items-center gap-1">
+                    @for (color of controller.quickColorOptions; track color) {
+                      <button
+                        type="button"
+                        [attr.aria-label]="'Checklist item quick select color ' + color"
+                        class="h-6 w-6 rounded-full border border-theme-border"
+                        [style.backgroundColor]="color"
+                        (click)="
+                          controller.changeChecklistItemColor(element.id, row.item.id, color)
+                        "
+                      ></button>
+                    }
+                  </div>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item bold"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm font-bold text-theme-text"
+                    (click)="controller.toggleChecklistItemFormat(element.id, row.item.id, 'bold')"
+                  >
+                    B
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item italic"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm italic text-theme-text"
+                    (click)="
+                      controller.toggleChecklistItemFormat(element.id, row.item.id, 'italic')
+                    "
+                  >
+                    I
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item underline"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm underline text-theme-text"
+                    (click)="
+                      controller.toggleChecklistItemFormat(element.id, row.item.id, 'underline')
+                    "
+                  >
+                    U
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item strikethrough"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm line-through text-theme-text"
+                    (click)="
+                      controller.applyChecklistItemInlineCommand(
+                        element.id,
+                        row.item.id,
+                        'strikeThrough'
+                      )
+                    "
+                  >
+                    S
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item subscript"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                    (click)="
+                      controller.applyChecklistItemInlineCommand(
+                        element.id,
+                        row.item.id,
+                        'subscript'
+                      )
+                    "
+                  >
+                    X<sub>2</sub>
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Checklist item superscript"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded border border-theme-border text-sm text-theme-text"
+                    (click)="
+                      controller.applyChecklistItemInlineCommand(
+                        element.id,
+                        row.item.id,
+                        'superscript'
+                      )
+                    "
+                  >
+                    X<sup>2</sup>
+                  </button>
+                </div>
+              }
+              @if (controller.checklistItemIsEditing(element.id, row.item.id)) {
+                <div
+                  xmlns="http://www.w3.org/1999/xhtml"
+                  [id]="controller.checklistEditorId(element.id, row.item.id)"
+                  contenteditable="true"
+                  role="textbox"
+                  aria-multiline="true"
+                  class="min-h-8 rounded border border-theme-accent bg-theme-bg/95 px-2 py-1 outline-none"
+                  (input)="controller.onChecklistItemInput(element.id, row.item.id, $event)"
+                  (keydown)="controller.onChecklistItemKeyDown($event, element.id, row.item.id)"
+                  (focus)="controller.onChecklistItemFocus(element.id, row.item.id)"
+                  (blur)="controller.stopChecklistItemEditing(row.item.id, $event)"
+                ></div>
+              } @else {
+                <div
+                  tabindex="0"
+                  class="min-h-8 cursor-text whitespace-pre-wrap break-words rounded px-2 py-1 outline-none"
+                  [class.line-through]="row.item.state === 'checked'"
+                  (keydown.enter)="
+                    controller.onChecklistItemActivationKeyDown($event, element.id, row.item.id)
+                  "
+                  (keydown.space)="
+                    controller.onChecklistItemActivationKeyDown($event, element.id, row.item.id)
+                  "
+                  [innerHTML]="controller.trustedChecklistItemHtml(row.item)"
+                ></div>
+              }
+              @if (row.item.dueDate) {
+                <div class="px-2 pb-1 text-xs text-theme-muted">Due {{ row.item.dueDate }}</div>
+              }
+            </div>
+            <button
+              type="button"
+              aria-label="Delete checklist item"
+              class="mt-1 inline-flex h-7 w-7 items-center justify-center rounded border border-theme-border text-theme-muted transition hover:text-theme-accent"
+              (click)="controller.deleteChecklistItemFromRow($event, element.id, row.item.id)"
+            >
+              <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</svg:foreignObject>

@@ -1,0 +1,50 @@
+<svg:rect
+  [attr.x]="element.x - 12"
+  [attr.y]="controller.elementContentTop(element) - 10"
+  [attr.width]="element.width + 24"
+  [attr.height]="controller.estimateElementHeight(element) + 20"
+  pointer-events="all"
+  rx="12"
+  fill="transparent"
+  stroke="rgb(var(--theme-accent) / 0.7)"
+  [attr.stroke-dasharray]="controller.selectedElementId === element.id ? '8 6' : null"
+  [attr.stroke-width]="controller.selectedElementId === element.id ? 1.5 / controller.scale : 0"
+  [style.cursor]="controller.activeTool === 'selection' ? 'move' : 'default'"
+  (pointerdown)="controller.onTextPointerDown($event, element.id)"
+  (dblclick)="controller.onTextDoubleClick($event, element.id)"
+/>
+
+<svg:foreignObject
+  [attr.x]="element.x"
+  [attr.y]="element.y"
+  [attr.width]="element.width"
+  [attr.height]="controller.estimateElementHeight(element)"
+>
+  @if (controller.attachmentForElement(element); as attachment) {
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      class="h-full w-full rounded border border-theme-border bg-theme-surface p-2 shadow-sm shadow-theme-brand/10"
+      (pointerdown)="controller.onAttachmentPreviewPointerDown($event, element.id)"
+    >
+      <div class="mb-2 text-xs text-theme-muted">
+        {{ attachment.name }} ({{ controller.formatFileSize(attachment.size) }})
+      </div>
+      <div class="h-[calc(100%-1.5rem)] overflow-hidden rounded">
+        <app-attachment-viewer
+          [noteId]="controller.note?.id ?? null"
+          [attachment]="attachment"
+          [attachmentBlob]="controller.attachmentBlobForElement(element)"
+          [compact]="true"
+        />
+      </div>
+    </div>
+  } @else {
+    <div
+      xmlns="http://www.w3.org/1999/xhtml"
+      class="flex h-full w-full items-center justify-center rounded border border-theme-accent-border bg-theme-accent-soft px-3 text-sm text-theme-accent"
+      (pointerdown)="controller.onAttachmentPreviewPointerDown($event, element.id)"
+    >
+      Attachment unavailable
+    </div>
+  }
+</svg:foreignObject>

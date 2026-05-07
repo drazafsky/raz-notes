@@ -13,13 +13,28 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { AlignmentGuidesCanvasControlComponent } from './canvas-tools/alignment-guides-canvas-control.component';
+import { AttachmentCanvasElementComponent } from './canvas-elements/attachment-canvas-element.component';
+import { AttachmentCanvasToolComponent } from './canvas-tools/attachment-canvas-tool.component';
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
+import { AttachmentCanvasToolService } from './attachment-canvas-tool.service';
+import type {
+  AttachmentCanvasElementController,
+  ChecklistCanvasElementController,
+  TextCanvasElementController,
+} from './canvas-element-controllers';
+import { CanvasHistoryService } from './canvas-history.service';
+import { CanvasToolbarStateService } from './canvas-toolbar-state.service';
+import { CanvasViewportService } from './canvas-viewport.service';
+import { CenterCanvasControlComponent } from './canvas-tools/center-canvas-control.component';
+import { ChecklistCanvasElementComponent } from './canvas-elements/checklist-canvas-element.component';
+import { ChecklistCanvasToolComponent } from './canvas-tools/checklist-canvas-tool.component';
+import { ChecklistCanvasToolService } from './checklist-canvas-tool.service';
 import {
   DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
   DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
   CHECKLIST_INDENT_PX,
   ChecklistLayoutRow,
-  computeNoteContentBounds,
   createChecklistItem,
   DEFAULT_TEXT_ELEMENT_WIDTH,
   DEFAULT_TEXT_FONT_FAMILY,
@@ -33,7 +48,16 @@ import {
   normalizeChecklistElement,
   normalizeNoteTextElement,
 } from './note-svg.utils';
+import {
+  CanvasHistorySnapshot,
+  CanvasTool,
+  DragAlignmentGuide,
+  FontOption,
+  SaveNotification,
+} from './note-canvas.types';
+import { RedoCanvasToolComponent } from './canvas-tools/redo-canvas-tool.component';
 import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
+import { SelectionCanvasToolComponent } from './canvas-tools/selection-canvas-tool.component';
 import {
   Attachment,
   ChecklistItemState,
@@ -44,18 +68,12 @@ import {
   NoteElement,
   NoteTextElement,
 } from './storage.service';
+import { TextCanvasElementComponent } from './canvas-elements/text-canvas-element.component';
+import { TextCanvasToolComponent } from './canvas-tools/text-canvas-tool.component';
+import { TextCanvasToolService } from './text-canvas-tool.service';
+import { UndoCanvasToolComponent } from './canvas-tools/undo-canvas-tool.component';
+import { ZoomToFitCanvasControlComponent } from './canvas-tools/zoom-to-fit-canvas-control.component';
 import { NotesStateService, PendingAttachment } from './notes-state.service';
-
-type CanvasTool = 'selection' | 'text' | 'checklist';
-interface FontOption {
-  label: string;
-  value: string;
-}
-interface SaveNotification {
-  type: 'success' | 'error';
-  message: string;
-  dismissable: boolean;
-}
 type QueryLocalFontsWindow = Window & {
   queryLocalFonts?: () => Promise<{ family: string }[]>;
 };
@@ -70,14 +88,6 @@ interface ElementCanvasBounds {
   right: number;
   top: number;
   bottom: number;
-}
-interface DragAlignmentGuide {
-  orientation: 'vertical' | 'horizontal';
-  position: number;
-  snapped: boolean;
-}
-interface CanvasHistorySnapshot {
-  elements: NoteElement[];
 }
 interface ChecklistReorderState {
   elementId: string;
@@ -120,9 +130,6 @@ const DEFAULT_QUICK_COLORS = [
   '#ffffff',
 ];
 const COLOR_USAGE_STORAGE_KEY = 'raz-notes.text-color-usage';
-const MIN_CANVAS_SCALE = 0.25;
-const MAX_CANVAS_SCALE = 6;
-const FIT_CONTENT_PADDING = 72;
 const SAVE_NOTIFICATION_DURATION_MS = 3000;
 const CHECKLIST_REORDER_STEP_PX = 36;
 const GUIDE_EXTENT = 50000;
@@ -130,7 +137,25 @@ const DRAG_ALIGNMENT_SNAP_THRESHOLD_PX = 12;
 
 @Component({
   selector: 'app-note-details-page',
-  imports: [FormsModule, DatePipe, RouterLink, AttachmentViewerComponent],
+  imports: [
+    FormsModule,
+    DatePipe,
+    RouterLink,
+    AttachmentViewerComponent,
+    SelectionCanvasToolComponent,
+    TextCanvasToolComponent,
+    ChecklistCanvasToolComponent,
+    AttachmentCanvasToolComponent,
+    UndoCanvasToolComponent,
+    RedoCanvasToolComponent,
+    CenterCanvasControlComponent,
+    ZoomToFitCanvasControlComponent,
+    AlignmentGuidesCanvasControlComponent,
+    TextCanvasElementComponent,
+    ChecklistCanvasElementComponent,
+    AttachmentCanvasElementComponent,
+  ],
+  providers: [CanvasHistoryService, CanvasToolbarStateService],
   templateUrl: './note-details-page.component.html',
 })
 export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
@@ -139,6 +164,12 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notesState = inject(NotesStateService);
+  private readonly attachmentCanvasTool = inject(AttachmentCanvasToolService);
+  private readonly canvasHistory = inject(CanvasHistoryService);
+  private readonly canvasToolbarState = inject(CanvasToolbarStateService);
+  private readonly canvasViewport = inject(CanvasViewportService);
+  private readonly checklistCanvasTool = inject(ChecklistCanvasToolService);
+  private readonly textCanvasTool = inject(TextCanvasToolService);
 
   note: Note | null = null;
   noteError = '';
@@ -155,6 +186,9 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   readonly checklistToolbarHeight = 48;
   readonly checklistIndentPx = CHECKLIST_INDENT_PX;
   readonly fontSizeOptions = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 60, 72, 96];
+  readonly canvasController: TextCanvasElementController &
+    ChecklistCanvasElementController &
+    AttachmentCanvasElementController = this;
   fontFamilyOptions: FontOption[] = FALLBACK_FONT_FAMILIES.map((family) => ({
     label: family,
     value: family,
@@ -167,9 +201,6 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   editingChecklistItemId: string | null = null;
   dragAlignmentEnabled = false;
   dragAlignmentGuides: DragAlignmentGuide[] = [];
-  activeTool: CanvasTool = 'selection';
-  undoStack: CanvasHistorySnapshot[] = [];
-  redoStack: CanvasHistorySnapshot[] = [];
   private pendingEditorSelection: 'all' | 'end' | null = null;
   viewX = 480;
   viewY = 280;
@@ -190,7 +221,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private saveNotificationTimeoutId: number | null = null;
   private checklistReorderState: ChecklistReorderState | null = null;
   private interactionHistoryCaptured = false;
-  private isReplayingHistory = false;
+
+  get activeTool(): CanvasTool {
+    return this.canvasToolbarState.activeTool();
+  }
+
+  set activeTool(tool: CanvasTool) {
+    this.canvasToolbarState.setActiveTool(tool);
+  }
 
   constructor() {
     const routeId = this.route.snapshot.paramMap.get('id');
@@ -453,19 +491,19 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   onCanvasWheel(event: WheelEvent): void {
     event.preventDefault();
-    const point = this.pointerToCanvas(event);
-    const nextScale = Math.min(
-      MAX_CANVAS_SCALE,
-      Math.max(MIN_CANVAS_SCALE, this.scale * (event.deltaY < 0 ? 1.1 : 0.9)),
-    );
-    if (nextScale === this.scale || !this.svgHostRef) {
+    const rect = this.getSvgHostRect();
+    if (!rect) {
       return;
     }
 
-    const rect = this.svgHostRef.nativeElement.getBoundingClientRect();
-    this.viewX = event.clientX - rect.left - point.x * nextScale;
-    this.viewY = event.clientY - rect.top - point.y * nextScale;
-    this.scale = nextScale;
+    const nextState = this.canvasViewport.wheelZoom(event, rect, {
+      viewX: this.viewX,
+      viewY: this.viewY,
+      scale: this.scale,
+    });
+    this.viewX = nextState.viewX;
+    this.viewY = nextState.viewY;
+    this.scale = nextState.scale;
   }
 
   @HostListener('document:pointermove', ['$event'])
@@ -638,9 +676,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return this.attachmentCanvasTool.formatFileSize(bytes);
   }
 
   estimateElementHeight(element: NoteElement): number {
@@ -726,32 +762,19 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   attachmentForElement(element: NoteAttachmentElement): Attachment | null {
-    return (
-      this.pendingAttachments.find((candidate) => candidate.attachment.id === element.attachmentId)
-        ?.attachment ??
-      this.note?.attachments.find((attachment) => attachment.id === element.attachmentId) ??
-      null
+    return this.attachmentCanvasTool.attachmentForElement(
+      this.note,
+      this.pendingAttachments,
+      element,
     );
   }
 
   attachmentBlobForElement(element: NoteAttachmentElement): Blob | null {
-    return (
-      this.pendingAttachments.find((candidate) => candidate.attachment.id === element.attachmentId)
-        ?.file ?? null
-    );
+    return this.attachmentCanvasTool.attachmentBlobForElement(this.pendingAttachments, element);
   }
 
   unplacedAttachments(): Attachment[] {
-    if (!this.note) {
-      return [];
-    }
-
-    const placedAttachmentIds = new Set(
-      this.elements
-        .filter((element): element is NoteAttachmentElement => isAttachmentElement(element))
-        .map((element) => element.attachmentId),
-    );
-    return this.note.attachments.filter((attachment) => !placedAttachmentIds.has(attachment.id));
+    return this.attachmentCanvasTool.unplacedAttachments(this.note, this.elements);
   }
 
   guideExtentStart(): number {
@@ -775,38 +798,26 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   canUndoCanvas(): boolean {
-    return this.undoStack.length > 0;
+    return this.canvasHistory.canUndo();
   }
 
   canRedoCanvas(): boolean {
-    return this.redoStack.length > 0;
+    return this.canvasHistory.canRedo();
   }
 
   undoCanvas(): void {
-    if (!this.canUndoCanvas()) {
-      return;
-    }
-
-    const snapshot = this.undoStack.pop();
+    const snapshot = this.canvasHistory.undo(this.captureCanvasHistorySnapshot());
     if (!snapshot) {
       return;
     }
-
-    this.redoStack.push(this.captureCanvasHistorySnapshot());
     this.applyCanvasHistorySnapshot(snapshot);
   }
 
   redoCanvas(): void {
-    if (!this.canRedoCanvas()) {
-      return;
-    }
-
-    const snapshot = this.redoStack.pop();
+    const snapshot = this.canvasHistory.redo(this.captureCanvasHistorySnapshot());
     if (!snapshot) {
       return;
     }
-
-    this.undoStack.push(this.captureCanvasHistorySnapshot());
     this.applyCanvasHistorySnapshot(snapshot);
   }
 
@@ -891,13 +902,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   private addTextElement(x: number, y: number): void {
     this.recordCanvasHistory();
-    const element = normalizeNoteTextElement({
-      id: crypto.randomUUID(),
-      text: 'New text',
-      x,
-      y,
-      width: DEFAULT_TEXT_ELEMENT_WIDTH,
-    });
+    const element = this.textCanvasTool.createElement(x, y);
     this.elements = [...this.elements, element];
     this.activeTool = 'selection';
     this.selectedElementId = element.id;
@@ -906,13 +911,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   private addChecklistElement(x: number, y: number): void {
     this.recordCanvasHistory();
-    const element = normalizeChecklistElement({
-      id: crypto.randomUUID(),
-      type: 'checklist',
-      x,
-      y,
-      items: [createChecklistItem('Checklist item')],
-    });
+    const element = this.checklistCanvasTool.createElement(x, y);
     this.elements = [...this.elements, element];
     this.syncNoteElements();
     this.activeTool = 'selection';
@@ -928,34 +927,11 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
     const start = origin ?? this.defaultAttachmentInsertionPoint();
     this.recordCanvasHistory();
-    const nextPendingAttachments = [...this.pendingAttachments];
-    const nextElements = [...this.elements];
-
-    files.forEach((file, index) => {
-      const attachment: Attachment = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      };
-      nextPendingAttachments.push({ attachment, file });
-      nextElements.push(
-        normalizeAttachmentElement({
-          id: crypto.randomUUID(),
-          type: 'attachment',
-          attachmentId: attachment.id,
-          x: start.x + index * 24,
-          y: start.y + index * 24,
-          width: DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
-          height: DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
-        }),
-      );
-    });
-
-    this.pendingAttachments = nextPendingAttachments;
-    this.elements = nextElements;
+    const insertions = this.attachmentCanvasTool.buildPendingAttachmentInsertions(files, start);
+    this.pendingAttachments = [...this.pendingAttachments, ...insertions.pendingAttachments];
+    this.elements = [...this.elements, ...insertions.elements];
     this.activeTool = 'selection';
-    this.selectedElementId = nextElements.at(-1)?.id ?? null;
+    this.selectedElementId = insertions.elements.at(-1)?.id ?? null;
     this.syncNoteElements();
   }
 
@@ -1124,7 +1100,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   private updateTextElement(elementId: string, patch: Partial<NoteTextElement>): void {
     this.updateElement(elementId, (element) =>
-      isTextElement(element) ? normalizeNoteTextElement({ ...element, ...patch }) : element,
+      isTextElement(element) ? this.textCanvasTool.applyPatch(element, patch) : element,
     );
   }
 
@@ -1146,12 +1122,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private recordCanvasHistory(): void {
-    if (this.isReplayingHistory) {
-      return;
-    }
-
-    this.undoStack.push(this.captureCanvasHistorySnapshot());
-    this.redoStack = [];
+    this.canvasHistory.record(this.captureCanvasHistorySnapshot());
   }
 
   private captureCanvasHistorySnapshot(): CanvasHistorySnapshot {
@@ -1161,24 +1132,24 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private applyCanvasHistorySnapshot(snapshot: CanvasHistorySnapshot): void {
-    this.isReplayingHistory = true;
-    this.elements = snapshot.elements.map((element) => this.cloneElement(element));
-    this.selectedElementId =
-      this.selectedElementId && this.getElement(this.selectedElementId)
-        ? this.selectedElementId
-        : null;
-    this.selectedChecklistItemId =
-      this.selectedElementId && this.selectedChecklistItemId
-        ? (this.findChecklistItemLocation(this.selectedElementId, this.selectedChecklistItemId)
-            ?.item.id ?? null)
-        : null;
-    this.editingElementId = null;
-    this.editingChecklistItemId = null;
-    this.pendingEditorSelection = null;
-    this.editorSelectionRange = null;
-    this.dragAlignmentGuides = [];
-    this.syncNoteElements();
-    this.isReplayingHistory = false;
+    this.canvasHistory.withReplay(() => {
+      this.elements = snapshot.elements.map((element) => this.cloneElement(element));
+      this.selectedElementId =
+        this.selectedElementId && this.getElement(this.selectedElementId)
+          ? this.selectedElementId
+          : null;
+      this.selectedChecklistItemId =
+        this.selectedElementId && this.selectedChecklistItemId
+          ? (this.findChecklistItemLocation(this.selectedElementId, this.selectedChecklistItemId)
+              ?.item.id ?? null)
+          : null;
+      this.editingElementId = null;
+      this.editingChecklistItemId = null;
+      this.pendingEditorSelection = null;
+      this.editorSelectionRange = null;
+      this.dragAlignmentGuides = [];
+      this.syncNoteElements();
+    });
     this.changeDetectorRef.detectChanges();
   }
 
@@ -1521,8 +1492,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const nextState: ChecklistItemState =
-      item.state === 'unchecked' ? 'partial' : item.state === 'partial' ? 'checked' : 'unchecked';
+    const nextState = this.checklistCanvasTool.cycleState(item.state);
     this.updateChecklistItem(elementId, itemId, (currentItem) => ({
       ...currentItem,
       state: nextState,
@@ -1740,7 +1710,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const nextItem = createChecklistItem('');
+    const nextItem = this.checklistCanvasTool.createItem('');
     this.updateChecklistElement(elementId, (element) => ({
       ...element,
       items: this.insertChecklistItemIntoParent(
@@ -1754,7 +1724,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private insertChecklistChild(elementId: string, itemId: string): void {
-    const nextItem = createChecklistItem('');
+    const nextItem = this.checklistCanvasTool.createItem('');
     this.updateChecklistItem(elementId, itemId, (item) => ({
       ...item,
       children: [...item.children, nextItem],
@@ -2382,20 +2352,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private applyCenteredView(rect: DOMRect, scale: number): void {
-    const bounds = computeNoteContentBounds(this.elements);
-    if (!bounds) {
-      this.applyDefaultView(rect);
-      return;
-    }
-
-    this.scale = Math.min(MAX_CANVAS_SCALE, Math.max(MIN_CANVAS_SCALE, scale));
-    this.viewX = rect.width / 2 - bounds.centerX * this.scale;
-    this.viewY = rect.height / 2 - bounds.centerY * this.scale;
+    const nextState = this.canvasViewport.centeredView(this.elements, rect, scale);
+    this.scale = nextState.scale;
+    this.viewX = nextState.viewX;
+    this.viewY = nextState.viewY;
   }
 
   private applyDefaultView(rect: Pick<DOMRect, 'width' | 'height'>): void {
-    this.viewX = rect.width / 2;
-    this.viewY = rect.height / 2;
+    const nextState = this.canvasViewport.defaultView(rect, this.scale);
+    this.scale = nextState.scale;
+    this.viewX = nextState.viewX;
+    this.viewY = nextState.viewY;
   }
 
   private applyZoomToFitView(rect: DOMRect, scale: number): void {
@@ -2403,21 +2370,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private fitScaleForRect(rect: Pick<DOMRect, 'width' | 'height'>): number {
-    const bounds = computeNoteContentBounds(this.elements);
-    if (!bounds) {
-      return this.scale;
-    }
-
-    return Math.min(
-      MAX_CANVAS_SCALE,
-      Math.max(
-        MIN_CANVAS_SCALE,
-        Math.min(
-          rect.width / Math.max(bounds.width + FIT_CONTENT_PADDING * 2, 1),
-          rect.height / Math.max(bounds.height + FIT_CONTENT_PADDING * 2, 1),
-        ),
-      ),
-    );
+    return this.canvasViewport.fitScale(this.elements, rect, this.scale);
   }
 
   private getSvgHostRect(): DOMRect | null {
@@ -2474,10 +2427,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return { x: 0, y: 0 };
     }
 
-    return {
-      x: (event.clientX - rect.left - this.viewX) / this.scale,
-      y: (event.clientY - rect.top - this.viewY) / this.scale,
-    };
+    return this.canvasViewport.pointerToCanvas(event, rect, this.viewX, this.viewY, this.scale);
   }
 
   private isFileDrag(event: DragEvent): boolean {
