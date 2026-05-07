@@ -108,6 +108,35 @@ describe('NotesListPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Delete');
   });
 
+  it('hides the device unlock section when passwordless unlock is unavailable', async () => {
+    const auth = new MockAuthService();
+    auth.passwordlessAvailable.set(false);
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: auth },
+        { provide: NotesStateService, useClass: MockNotesStateService },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Device unlock');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'This browser does not expose the secure device-credential features needed for offline passwordless unlock.',
+    );
+  });
+
   it('opens a confirmation modal before deleting a note from the list page', async () => {
     const notesState = new MockNotesStateService();
     await TestBed.configureTestingModule({

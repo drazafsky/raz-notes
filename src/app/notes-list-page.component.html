@@ -47,47 +47,44 @@
   ></app-confirmation-modal>
 }
 
-<section
-  class="mb-4 rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
->
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h3 class="font-medium text-theme-text">Device unlock</h3>
+@if (auth.passwordlessEnrolled() || auth.passwordlessAvailable()) {
+  <section
+    class="mb-4 rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
+  >
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 class="font-medium text-theme-text">Device unlock</h3>
+        @if (auth.passwordlessEnrolled()) {
+          <p class="mt-1 text-sm text-theme-muted">
+            This device can unlock the encrypted vault without typing the password.
+          </p>
+        } @else {
+          <p class="mt-1 text-sm text-theme-muted">
+            Enable an offline device-backed unlock method for faster sign-in on this device.
+          </p>
+        }
+      </div>
+
       @if (auth.passwordlessEnrolled()) {
-        <p class="mt-1 text-sm text-theme-muted">
-          This device can unlock the encrypted vault without typing the password.
-        </p>
-      } @else if (auth.passwordlessAvailable()) {
-        <p class="mt-1 text-sm text-theme-muted">
-          Enable an offline device-backed unlock method for faster sign-in on this device.
-        </p>
+        <button
+          type="button"
+          (click)="disablePasswordlessUnlock()"
+          class="rounded border border-theme-border px-3 py-1.5 text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
+        >
+          Remove device unlock
+        </button>
       } @else {
-        <p class="mt-1 text-sm text-theme-muted">
-          This browser does not expose the secure device-credential features needed for offline
-          passwordless unlock.
-        </p>
+        <button
+          type="button"
+          (click)="enablePasswordlessUnlock()"
+          class="rounded bg-theme-brand px-3 py-1.5 text-sm font-medium text-theme-on-brand hover:bg-theme-brand/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
+        >
+          Enable device unlock
+        </button>
       }
     </div>
-
-    @if (auth.passwordlessEnrolled()) {
-      <button
-        type="button"
-        (click)="disablePasswordlessUnlock()"
-        class="rounded border border-theme-border px-3 py-1.5 text-sm text-theme-text hover:bg-theme-brand-soft focus:outline-none focus:ring-2 focus:ring-theme-brand"
-      >
-        Remove device unlock
-      </button>
-    } @else if (auth.passwordlessAvailable()) {
-      <button
-        type="button"
-        (click)="enablePasswordlessUnlock()"
-        class="rounded bg-theme-brand px-3 py-1.5 text-sm font-medium text-theme-on-brand hover:bg-theme-brand/90 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-theme-surface"
-      >
-        Enable device unlock
-      </button>
-    }
-  </div>
-</section>
+  </section>
+}
 
 <section
   class="rounded-lg border border-theme-border bg-theme-surface p-4 shadow-sm shadow-theme-brand/10"
