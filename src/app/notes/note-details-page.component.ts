@@ -30,6 +30,7 @@ import { CanvasViewportService } from './note-editor/canvas-viewport.service';
 import { CenterCanvasControlComponent } from './note-editor/canvas-tools/center-canvas-control.component';
 import { ChecklistCanvasElementComponent } from './note-editor/canvas-elements/checklist-canvas-element.component';
 import { ChecklistCanvasToolComponent } from './note-editor/canvas-tools/checklist-canvas-tool.component';
+import { MatchSizeCanvasToolComponent } from './note-editor/canvas-tools/match-size-canvas-tool.component';
 import { ChecklistCanvasToolService } from './note-editor/checklist-canvas-tool.service';
 import {
   DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
@@ -150,6 +151,7 @@ const DRAG_ALIGNMENT_SNAP_THRESHOLD_PX = 12;
     AttachmentCanvasToolComponent,
     UndoCanvasToolComponent,
     RedoCanvasToolComponent,
+    MatchSizeCanvasToolComponent,
     CenterCanvasControlComponent,
     ZoomToFitCanvasControlComponent,
     AlignmentGuidesCanvasControlComponent,
@@ -172,6 +174,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private readonly canvasViewport = inject(CanvasViewportService);
   private readonly checklistCanvasTool = inject(ChecklistCanvasToolService);
   private readonly textCanvasTool = inject(TextCanvasToolService);
+  private _selectedElementId: string | null = null;
+  private syncingSelectionState = false;
 
   note: Note | null = null;
   noteError = '';
@@ -198,7 +202,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   }));
   quickColorOptions = [...DEFAULT_QUICK_COLORS];
   pendingAttachments: PendingAttachment[] = [];
-  selectedElementId: string | null = null;
+  selectedElementIds: string[] = [];
   editingElementId: string | null = null;
   selectedChecklistItemId: string | null = null;
   editingChecklistItemId: string | null = null;
@@ -224,6 +228,18 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private saveNotificationTimeoutId: number | null = null;
   private checklistReorderState: ChecklistReorderState | null = null;
   private interactionHistoryCaptured = false;
+
+  get selectedElementId(): string | null {
+    return this._selectedElementId;
+  }
+
+  set selectedElementId(value: string | null) {
+    this._selectedElementId = value;
+    if (this.syncingSelectionState) {
+      return;
+    }
+    this.selectedElementIds = value ? [value] : [];
+  }
 
   get activeTool(): CanvasTool {
     return this.canvasToolbarState.activeTool();
@@ -462,6 +478,11 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (event.ctrlKey || event.metaKey || event.shiftKey) {
+      this.toggleElementSelection(elementId);
+      return;
+    }
+
     this.dragAlignmentGuides = [];
     this.cleanupChecklistItemsOnUnselect(elementId);
     this.selectedElementId = elementId;
@@ -643,6 +664,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
         this.addChecklistElement(point.x, point.y);
       } else {
         this.selectedElementId = null;
+        this.selectedElementIds = [];
         this.editingElementId = null;
         this.selectedChecklistItemId = null;
         this.editingChecklistItemId = null;
@@ -701,7 +723,10 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    if (!this.selectedElementId || (event.key !== 'Delete' && event.key !== 'Backspace')) {
+    if (
+      this.selectedElementIds.length === 0 ||
+      (event.key !== 'Delete' && event.key !== 'Backspace')
+    ) {
       return;
     }
 
@@ -710,7 +735,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     event.preventDefault();
-    this.deleteElement(this.selectedElementId);
+    this.deleteSelectedElements();
   }
 
   formatFileSize(bytes: number): string {
@@ -843,6 +868,16 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     return this.canvasHistory.canRedo();
   }
 
+  canMatchSelectedElementSizes(): boolean {
+    return (
+      this.selectedElementIds.length >= 2 && !!this.getElement(this.selectedElementIds[0] ?? '')
+    );
+  }
+
+  isElementSelected(elementId: string): boolean {
+    return this.selectedElementIds.includes(elementId);
+  }
+
   undoCanvas(): void {
     const snapshot = this.canvasHistory.undo(this.captureCanvasHistorySnapshot());
     if (!snapshot) {
@@ -857,6 +892,54 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.applyCanvasHistorySnapshot(snapshot);
+  }
+
+  matchSelectedElementSizes(): void {
+    if (this.selectedElementIds.length < 2) {
+      return;
+    }
+
+    const referenceElement = this.getElement(this.selectedElementIds[0] ?? '');
+    if (!referenceElement) {
+      return;
+    }
+
+    const targetIds = new Set(this.selectedElementIds.slice(1));
+    if (targetIds.size === 0) {
+      return;
+    }
+
+    this.recordCanvasHistory();
+    const referenceWidth = referenceElement.width;
+    const referenceHeight = this.elementHeightValue(referenceElement);
+    this.elements = this.elements.map((element) => {
+      if (!targetIds.has(element.id)) {
+        return element;
+      }
+
+      if (isChecklistElement(element)) {
+        return normalizeChecklistElement({
+          ...element,
+          width: referenceWidth,
+          height: referenceHeight,
+        });
+      }
+
+      if (isAttachmentElement(element)) {
+        return normalizeAttachmentElement({
+          ...element,
+          width: referenceWidth,
+          height: referenceHeight,
+        });
+      }
+
+      return normalizeNoteTextElement({
+        ...element,
+        width: referenceWidth,
+        height: referenceHeight,
+      });
+    });
+    this.syncNoteElements();
   }
 
   setActiveTool(tool: CanvasTool): void {
@@ -1166,16 +1249,15 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private captureCanvasHistorySnapshot(): CanvasHistorySnapshot {
     return {
       elements: this.elements.map((element) => this.cloneElement(element)),
+      selectedElementId: this.selectedElementId,
+      selectedElementIds: [...this.selectedElementIds],
     };
   }
 
   private applyCanvasHistorySnapshot(snapshot: CanvasHistorySnapshot): void {
     this.canvasHistory.withReplay(() => {
       this.elements = snapshot.elements.map((element) => this.cloneElement(element));
-      this.selectedElementId =
-        this.selectedElementId && this.getElement(this.selectedElementId)
-          ? this.selectedElementId
-          : null;
+      this.updateSelectedElements(snapshot.selectedElementIds, snapshot.selectedElementId);
       this.selectedChecklistItemId =
         this.selectedElementId && this.selectedChecklistItemId
           ? (this.findChecklistItemLocation(this.selectedElementId, this.selectedChecklistItemId)
@@ -1202,6 +1284,7 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
 
   private syncNoteElements(): void {
     this.pruneDetachedPendingAttachments();
+    this.syncSelectionState();
     this.ensureChecklistItemSelection();
     if (this.note) {
       this.note = {
@@ -1226,6 +1309,71 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
       this.editingChecklistItemId = null;
     }
     this.syncNoteElements();
+  }
+
+  private deleteSelectedElements(): void {
+    if (this.selectedElementIds.length === 0) {
+      return;
+    }
+
+    if (this.selectedElementIds.length === 1) {
+      this.deleteElement(this.selectedElementIds[0]);
+      return;
+    }
+
+    const selectedIds = new Set(this.selectedElementIds);
+    this.recordCanvasHistory();
+    this.elements = this.elements.filter((element) => !selectedIds.has(element.id));
+    this.selectedElementId = null;
+    this.selectedChecklistItemId = null;
+    this.editingElementId = null;
+    this.editingChecklistItemId = null;
+    this.syncNoteElements();
+  }
+
+  private elementHeightValue(element: NoteElement): number {
+    return element.height ?? this.estimateElementHeight(element);
+  }
+
+  private toggleElementSelection(elementId: string): void {
+    const nextSelectedIds = this.selectedElementIds.includes(elementId)
+      ? this.selectedElementIds.filter((id) => id !== elementId)
+      : [...this.selectedElementIds, elementId];
+    this.cleanupChecklistItemsOnUnselect(elementId);
+    this.updateSelectedElements(
+      nextSelectedIds,
+      nextSelectedIds.includes(elementId) ? elementId : null,
+    );
+    if (nextSelectedIds.length !== 1) {
+      this.selectedChecklistItemId = null;
+      this.editingChecklistItemId = null;
+      this.editingElementId = null;
+    }
+  }
+
+  private updateSelectedElements(elementIds: string[], activeElementId: string | null): void {
+    const validIds = elementIds.filter(
+      (elementId, index) => index === elementIds.indexOf(elementId) && !!this.getElement(elementId),
+    );
+    this.syncingSelectionState = true;
+    this.selectedElementIds = validIds;
+    this._selectedElementId =
+      activeElementId && validIds.includes(activeElementId)
+        ? activeElementId
+        : (validIds.at(-1) ?? null);
+    this.syncingSelectionState = false;
+  }
+
+  private syncSelectionState(): void {
+    this.updateSelectedElements(this.selectedElementIds, this.selectedElementId);
+    if (this.selectedElementIds.length !== 1) {
+      this.selectedChecklistItemId = null;
+      this.editingChecklistItemId = null;
+    }
+    if (this.selectedElementId === null) {
+      this.editingElementId = null;
+      this.editingChecklistItemId = null;
+    }
   }
 
   private getElement(elementId: string): NoteElement | undefined {

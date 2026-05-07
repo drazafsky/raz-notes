@@ -265,6 +265,62 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.nativeElement.querySelector('#text-editor-t2')).toBeTruthy();
   });
 
+  it('matches selected element sizes to the first selected element', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.note = {
+      ...notesState.note,
+      attachments: [
+        { id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 },
+        { id: 'a2', name: 'other.txt', type: 'text/plain', size: 4 },
+      ],
+      elements: [
+        {
+          id: 'a-el-1',
+          type: 'attachment',
+          attachmentId: 'a1',
+          x: 0,
+          y: 0,
+          width: 320,
+          height: 220,
+        },
+        {
+          id: 'a-el-2',
+          type: 'attachment',
+          attachmentId: 'a2',
+          x: 360,
+          y: 0,
+          width: 180,
+          height: 120,
+        },
+      ],
+    };
+    const fixture = await createComponent(notesState);
+
+    fixture.componentInstance.onTextPointerDown(
+      {
+        button: 0,
+        clientX: 20,
+        clientY: 20,
+        ctrlKey: true,
+        stopPropagation: () => undefined,
+      } as PointerEvent,
+      'a-el-2',
+    );
+
+    fixture.componentInstance.matchSelectedElementSizes();
+
+    const secondElement = fixture.componentInstance.elements.find(
+      (element) => element.id === 'a-el-2',
+    );
+    expect(fixture.componentInstance.selectedElementIds).toEqual(['a-el-1', 'a-el-2']);
+    expect(secondElement).toEqual(
+      jasmine.objectContaining({
+        width: 320,
+        height: 220,
+      }),
+    );
+  });
+
   it('clicking rendered text enters edit mode through DOM events', async () => {
     const fixture = await createComponent();
     const textElement = fixture.nativeElement.querySelector('foreignObject div.select-none');

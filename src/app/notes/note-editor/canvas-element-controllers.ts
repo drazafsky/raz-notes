@@ -14,6 +14,7 @@ import type { ChecklistLayoutRow } from '../note-svg.utils';
 export interface TextCanvasElementController {
   activeTool: CanvasTool;
   selectedElementId: string | null;
+  selectedElementIds: string[];
   editingElementId: string | null;
   scale: number;
   textToolbarWidth: number;
@@ -25,6 +26,7 @@ export interface TextCanvasElementController {
   fontSizeFor(element: NoteTextElement): number;
   fontFamilyFor(element: NoteTextElement): string;
   textColorFor(element: NoteTextElement): string;
+  isElementSelected(elementId: string): boolean;
   toolbarTextColorValue(element: NoteTextElement): string;
   textToolbarY(element: NoteTextElement): number;
   elementContentTop(element: NoteTextElement): number;
@@ -50,6 +52,7 @@ export interface TextCanvasElementController {
 export interface ChecklistCanvasElementController {
   activeTool: CanvasTool;
   selectedElementId: string | null;
+  selectedElementIds: string[];
   selectedChecklistItemId: string | null;
   scale: number;
   checklistToolbarWidth: number;
@@ -61,6 +64,7 @@ export interface ChecklistCanvasElementController {
   estimateElementHeight(element: NoteChecklistElement): number;
   elementContentTop(element: NoteChecklistElement): number;
   checklistToolbarY(element: NoteChecklistElement): number;
+  isElementSelected(elementId: string): boolean;
   checklistRowsFor(element: NoteChecklistElement): ChecklistLayoutRow[];
   checklistItemIsSelected(elementId: string, itemId: string): boolean;
   checklistItemIsEditing(elementId: string, itemId: string): boolean;
@@ -107,10 +111,12 @@ export interface ChecklistCanvasElementController {
 export interface AttachmentCanvasElementController {
   activeTool: CanvasTool;
   selectedElementId: string | null;
+  selectedElementIds: string[];
   scale: number;
   note: Note | null;
   estimateElementHeight(element: NoteAttachmentElement): number;
   elementContentTop(element: NoteAttachmentElement): number;
+  isElementSelected(elementId: string): boolean;
   attachmentForElement(element: NoteAttachmentElement): Attachment | null;
   attachmentBlobForElement(element: NoteAttachmentElement): Blob | null;
   formatFileSize(bytes: number): string;

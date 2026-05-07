@@ -21,4 +21,6 @@ export interface DragAlignmentGuide {
 
 export interface CanvasHistorySnapshot {
   elements: NoteElement[];
+  selectedElementId: string | null;
+  selectedElementIds: string[];
 }

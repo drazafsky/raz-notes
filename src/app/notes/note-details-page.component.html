@@ -108,6 +108,10 @@
         <div class="hidden h-8 w-px bg-theme-border sm:block" aria-hidden="true"></div>
         <app-undo-canvas-tool [disabled]="!canUndoCanvas()" (pressed)="undoCanvas()" />
         <app-redo-canvas-tool [disabled]="!canRedoCanvas()" (pressed)="redoCanvas()" />
+        <app-match-size-canvas-tool
+          [disabled]="!canMatchSelectedElementSizes()"
+          (pressed)="matchSelectedElementSizes()"
+        />
         <div class="hidden h-8 w-px bg-theme-border sm:block" aria-hidden="true"></div>
         <app-text-canvas-tool [active]="activeTool === 'text'" (pressed)="setActiveTool('text')" />
         <app-checklist-canvas-tool
