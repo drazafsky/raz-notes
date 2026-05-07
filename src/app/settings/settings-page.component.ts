@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { AuthService, LOGIN_TIMEOUT_OPTIONS } from './auth.service';
+import { AuthService, LOGIN_TIMEOUT_OPTIONS } from '../auth/auth.service';
 
 @Component({
   selector: 'app-settings-page',

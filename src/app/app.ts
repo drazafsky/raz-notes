@@ -2,8 +2,8 @@ import { Component, HostListener, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
-import { AuthService } from './auth.service';
-import { NotesStateService } from './notes-state.service';
+import { AuthService } from './auth/auth.service';
+import { NotesStateService } from './notes/notes-state.service';
 
 @Component({
   selector: 'app-root',

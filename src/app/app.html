@@ -125,14 +125,6 @@
         Sign in locally to decrypt your notes and attachments. No internet connection is required.
       </p>
 
-      @if (auth.storedUsername()) {
-        <p
-          class="mb-3 rounded border border-theme-border bg-theme-brand-soft px-3 py-2 text-sm text-theme-text"
-        >
-          Local account: {{ auth.storedUsername() }}
-        </p>
-      }
-
       @if (authError) {
         <p
           class="mb-3 rounded border border-theme-accent-border bg-theme-accent-soft px-3 py-2 text-sm text-theme-accent"

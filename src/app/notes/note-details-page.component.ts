@@ -13,24 +13,24 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
-import { AlignmentGuidesCanvasControlComponent } from './canvas-tools/alignment-guides-canvas-control.component';
-import { AttachmentCanvasElementComponent } from './canvas-elements/attachment-canvas-element.component';
-import { AttachmentCanvasToolComponent } from './canvas-tools/attachment-canvas-tool.component';
+import { AlignmentGuidesCanvasControlComponent } from './note-editor/canvas-tools/alignment-guides-canvas-control.component';
+import { AttachmentCanvasElementComponent } from './note-editor/canvas-elements/attachment-canvas-element.component';
+import { AttachmentCanvasToolComponent } from './note-editor/canvas-tools/attachment-canvas-tool.component';
 import { AttachmentViewerComponent } from './attachment-viewer/attachment-viewer.component';
-import { AttachmentCanvasToolService } from './attachment-canvas-tool.service';
+import { AttachmentCanvasToolService } from './note-editor/attachment-canvas-tool.service';
 import { ConfirmationModalComponent } from './confirmation-modal.component';
 import type {
   AttachmentCanvasElementController,
   ChecklistCanvasElementController,
   TextCanvasElementController,
-} from './canvas-element-controllers';
-import { CanvasHistoryService } from './canvas-history.service';
-import { CanvasToolbarStateService } from './canvas-toolbar-state.service';
-import { CanvasViewportService } from './canvas-viewport.service';
-import { CenterCanvasControlComponent } from './canvas-tools/center-canvas-control.component';
-import { ChecklistCanvasElementComponent } from './canvas-elements/checklist-canvas-element.component';
-import { ChecklistCanvasToolComponent } from './canvas-tools/checklist-canvas-tool.component';
-import { ChecklistCanvasToolService } from './checklist-canvas-tool.service';
+} from './note-editor/canvas-element-controllers';
+import { CanvasHistoryService } from './note-editor/canvas-history.service';
+import { CanvasToolbarStateService } from './note-editor/canvas-toolbar-state.service';
+import { CanvasViewportService } from './note-editor/canvas-viewport.service';
+import { CenterCanvasControlComponent } from './note-editor/canvas-tools/center-canvas-control.component';
+import { ChecklistCanvasElementComponent } from './note-editor/canvas-elements/checklist-canvas-element.component';
+import { ChecklistCanvasToolComponent } from './note-editor/canvas-tools/checklist-canvas-tool.component';
+import { ChecklistCanvasToolService } from './note-editor/checklist-canvas-tool.service';
 import {
   DEFAULT_ATTACHMENT_ELEMENT_HEIGHT,
   DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
@@ -55,10 +55,10 @@ import {
   DragAlignmentGuide,
   FontOption,
   SaveNotification,
-} from './note-canvas.types';
-import { RedoCanvasToolComponent } from './canvas-tools/redo-canvas-tool.component';
+} from './note-editor/note-canvas.types';
+import { RedoCanvasToolComponent } from './note-editor/canvas-tools/redo-canvas-tool.component';
 import { plainTextToRichHtml, richHtmlToPlainText } from './rich-text.utils';
-import { SelectionCanvasToolComponent } from './canvas-tools/selection-canvas-tool.component';
+import { SelectionCanvasToolComponent } from './note-editor/canvas-tools/selection-canvas-tool.component';
 import {
   Attachment,
   ChecklistItemState,
@@ -69,11 +69,11 @@ import {
   NoteElement,
   NoteTextElement,
 } from './storage.service';
-import { TextCanvasElementComponent } from './canvas-elements/text-canvas-element.component';
-import { TextCanvasToolComponent } from './canvas-tools/text-canvas-tool.component';
-import { TextCanvasToolService } from './text-canvas-tool.service';
-import { UndoCanvasToolComponent } from './canvas-tools/undo-canvas-tool.component';
-import { ZoomToFitCanvasControlComponent } from './canvas-tools/zoom-to-fit-canvas-control.component';
+import { TextCanvasElementComponent } from './note-editor/canvas-elements/text-canvas-element.component';
+import { TextCanvasToolComponent } from './note-editor/canvas-tools/text-canvas-tool.component';
+import { TextCanvasToolService } from './note-editor/text-canvas-tool.service';
+import { UndoCanvasToolComponent } from './note-editor/canvas-tools/undo-canvas-tool.component';
+import { ZoomToFitCanvasControlComponent } from './note-editor/canvas-tools/zoom-to-fit-canvas-control.component';
 import { NotesStateService, PendingAttachment } from './notes-state.service';
 type QueryLocalFontsWindow = Window & {
   queryLocalFonts?: () => Promise<{ family: string }[]>;

@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
 
-import { createChecklistItem, normalizeChecklistElement } from './note-svg.utils';
+import { createChecklistItem, normalizeChecklistElement } from '../note-svg.utils';
 import type {
   ChecklistItemState,
   NoteChecklistElement,
   NoteChecklistItem,
-} from './storage.service';
+} from '../storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChecklistCanvasToolService {

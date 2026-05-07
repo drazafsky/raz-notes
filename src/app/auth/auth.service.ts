@@ -10,7 +10,7 @@ import {
   normalizeUsername,
   toArrayBuffer,
 } from './crypto.utils';
-import { StorageService } from './storage.service';
+import { StorageService } from '../notes/storage.service';
 
 export type AuthStatus = 'initializing' | 'setup-required' | 'locked' | 'unlocked';
 

@@ -3,10 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 
 import { App } from './app';
-import { AuthService, AuthStatus } from './auth.service';
-import { LoginTimeoutOption } from './crypto.utils';
-import { Note } from './storage.service';
-import { NotesStateService } from './notes-state.service';
+import { AuthService, AuthStatus } from './auth/auth.service';
+import { LoginTimeoutOption } from './auth/crypto.utils';
+import { Note } from './notes/storage.service';
+import { NotesStateService } from './notes/notes-state.service';
 
 @Component({ template: '' })
 class DummyRouteComponent {}
@@ -119,6 +119,16 @@ describe('App', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('Unlock with device');
+  });
+
+  it('does not show the local account banner on the locked screen', async () => {
+    mockAuth.status.set('locked');
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Local account:');
   });
 
   it('loads notes after a successful login', async () => {

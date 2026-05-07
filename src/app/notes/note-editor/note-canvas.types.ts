@@ -1,4 +1,4 @@
-import type { NoteElement } from './storage.service';
+import type { NoteElement } from '../storage.service';
 
 export type CanvasTool = 'selection' | 'text' | 'checklist';
 

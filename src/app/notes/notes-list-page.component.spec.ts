@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterLink } from '@angular/router';
 
 import { AttachmentPreviewService } from './attachment-viewer/attachment-preview.service';
-import { AuthService, AuthStatus } from './auth.service';
+import { AuthService, AuthStatus } from '../auth/auth.service';
 import { NotesListPageComponent } from './notes-list-page.component';
 import { NotesStateService } from './notes-state.service';
 import { Note, StorageService } from './storage.service';

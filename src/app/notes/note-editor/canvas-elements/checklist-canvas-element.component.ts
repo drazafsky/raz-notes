@@ -2,7 +2,7 @@ import { Component, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { ChecklistCanvasElementController } from '../canvas-element-controllers';
-import type { NoteChecklistElement } from '../storage.service';
+import type { NoteChecklistElement } from '../../storage.service';
 
 @Component({
   selector: 'g[appChecklistCanvasElement]', // eslint-disable-line @angular-eslint/component-selector

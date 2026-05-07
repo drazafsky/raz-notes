@@ -1,8 +1,8 @@
 import { Routes } from '@angular/router';
 
-import { NoteDetailsPageComponent } from './note-details-page.component';
-import { NotesListPageComponent } from './notes-list-page.component';
-import { SettingsPageComponent } from './settings-page.component';
+import { NoteDetailsPageComponent } from './notes/note-details-page.component';
+import { NotesListPageComponent } from './notes/notes-list-page.component';
+import { SettingsPageComponent } from './settings/settings-page.component';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'notes' },

@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
-import { AuthService } from './auth.service';
+import { AuthService } from '../auth/auth.service';
 import { NoteArchiveService } from './note-archive.service';
 import {
   isAttachmentElement,

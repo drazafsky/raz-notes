@@ -1,8 +1,8 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
-import { AuthService } from './auth.service';
-import { LoginTimeoutOption } from './crypto.utils';
+import { AuthService } from '../auth/auth.service';
+import { LoginTimeoutOption } from '../auth/crypto.utils';
 import { SettingsPageComponent } from './settings-page.component';
 
 describe('SettingsPageComponent', () => {

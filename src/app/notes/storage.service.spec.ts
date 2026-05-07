@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { AuthRecord } from './crypto.utils';
+import { AuthRecord } from '../auth/crypto.utils';
 import {
   Note,
   NoteChecklistElement,

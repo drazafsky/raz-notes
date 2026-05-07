@@ -7,9 +7,9 @@ import type {
   NoteChecklistElement,
   NoteChecklistItem,
   NoteTextElement,
-} from './storage.service';
+} from '../storage.service';
 import type { CanvasTool, FontOption } from './note-canvas.types';
-import type { ChecklistLayoutRow } from './note-svg.utils';
+import type { ChecklistLayoutRow } from '../note-svg.utils';
 
 export interface TextCanvasElementController {
   activeTool: CanvasTool;

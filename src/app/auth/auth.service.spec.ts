@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { AuthService, DEFAULT_LOGIN_TIMEOUT } from './auth.service';
 import { AuthRecord } from './crypto.utils';
-import { StorageService } from './storage.service';
+import { StorageService } from '../notes/storage.service';
 
 function createMockPublicKeyCredential(
   id: Uint8Array,

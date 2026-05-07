@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
-import { computeNoteContentBounds } from './note-svg.utils';
-import type { NoteElement } from './storage.service';
+import { computeNoteContentBounds } from '../note-svg.utils';
+import type { NoteElement } from '../storage.service';
 
 export interface CanvasViewportState {
   viewX: number;

@@ -5,9 +5,9 @@ import {
   DEFAULT_ATTACHMENT_ELEMENT_WIDTH,
   isAttachmentElement,
   normalizeAttachmentElement,
-} from './note-svg.utils';
-import type { PendingAttachment } from './notes-state.service';
-import type { Attachment, Note, NoteAttachmentElement, NoteElement } from './storage.service';
+} from '../note-svg.utils';
+import type { PendingAttachment } from '../notes-state.service';
+import type { Attachment, Note, NoteAttachmentElement, NoteElement } from '../storage.service';
 
 export interface PendingAttachmentInsertion {
   pendingAttachments: PendingAttachment[];

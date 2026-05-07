@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
-import { DEFAULT_TEXT_ELEMENT_WIDTH, normalizeNoteTextElement } from './note-svg.utils';
-import type { NoteTextElement } from './storage.service';
+import { DEFAULT_TEXT_ELEMENT_WIDTH, normalizeNoteTextElement } from '../note-svg.utils';
+import type { NoteTextElement } from '../storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class TextCanvasToolService {

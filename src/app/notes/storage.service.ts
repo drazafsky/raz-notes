@@ -8,7 +8,7 @@ import {
   bytesToUtf8,
   toArrayBuffer,
   utf8ToBytes,
-} from './crypto.utils';
+} from '../auth/crypto.utils';
 import {
   normalizeAttachmentElement,
   normalizeChecklistElement,

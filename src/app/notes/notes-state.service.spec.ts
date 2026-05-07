@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { AuthService } from './auth.service';
+import { AuthService } from '../auth/auth.service';
 import { NoteArchiveService } from './note-archive.service';
 import { NotesStateService, PendingAttachment } from './notes-state.service';
 import { Note, NoteAttachmentElement, NoteTextElement, StorageService } from './storage.service';

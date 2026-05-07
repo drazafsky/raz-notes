@@ -16,7 +16,7 @@ import {
   layoutChecklistRows,
 } from './note-svg.utils';
 import { plainTextToRichHtml } from './rich-text.utils';
-import { AuthService } from './auth.service';
+import { AuthService } from '../auth/auth.service';
 import { NotesStateService } from './notes-state.service';
 import {
   Attachment,
