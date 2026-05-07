@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import { AuthService } from './auth.service';
+import { NoteArchiveService } from './note-archive.service';
 import { NotesStateService, PendingAttachment } from './notes-state.service';
 import { Note, NoteAttachmentElement, NoteTextElement, StorageService } from './storage.service';
 
@@ -8,26 +9,54 @@ describe('NotesStateService', () => {
   let service: NotesStateService;
   let storage: jasmine.SpyObj<StorageService>;
   let auth: jasmine.SpyObj<AuthService>;
+  let noteArchive: jasmine.SpyObj<NoteArchiveService>;
 
   beforeEach(() => {
     storage = jasmine.createSpyObj<StorageService>('StorageService', [
       'loadNotes',
       'saveNotes',
       'writeAttachment',
+      'readAttachment',
       'deleteNote',
       'deleteAttachment',
     ]);
     storage.loadNotes.and.returnValue(Promise.resolve([]));
     storage.saveNotes.and.returnValue(Promise.resolve());
     storage.writeAttachment.and.returnValue(Promise.resolve());
+    storage.readAttachment.and.returnValue(
+      Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+    );
     storage.deleteNote.and.returnValue(Promise.resolve());
     storage.deleteAttachment.and.returnValue(Promise.resolve());
     auth = jasmine.createSpyObj<AuthService>('AuthService', ['recordActivity']);
+    noteArchive = jasmine.createSpyObj<NoteArchiveService>('NoteArchiveService', [
+      'inspectArchive',
+      'exportNote',
+      'importNote',
+    ]);
+    noteArchive.inspectArchive.and.resolveTo({ title: 'Imported note' });
+    noteArchive.exportNote.and.resolveTo(new Blob(['archive']));
+    noteArchive.importNote.and.resolveTo({
+      note: {
+        title: 'Imported note',
+        createdAt: '2026-05-06T00:00:00.000Z',
+        lastModifiedAt: '2026-05-06T01:00:00.000Z',
+        elements: [{ id: 't1', text: 'Imported', x: 0, y: 0, width: 180, fontSize: 24 }],
+        attachments: [{ id: 'a1', name: 'imported.txt', type: 'text/plain', size: 4 }],
+      },
+      attachmentFiles: [
+        {
+          attachmentId: 'a1',
+          file: new File(['demo'], 'imported.txt', { type: 'text/plain' }),
+        },
+      ],
+    });
 
     TestBed.configureTestingModule({
       providers: [
         { provide: StorageService, useValue: storage },
         { provide: AuthService, useValue: auth },
+        { provide: NoteArchiveService, useValue: noteArchive },
       ],
     });
 
@@ -173,5 +202,90 @@ describe('NotesStateService', () => {
     expect(updated.attachments).toEqual([]);
     expect(storage.deleteAttachment).toHaveBeenCalledWith(3, 'a1');
     expect(auth.recordActivity).toHaveBeenCalled();
+  });
+
+  it('exports a note archive with attachment blobs', async () => {
+    const existing: Note = {
+      id: 8,
+      title: 'Exported',
+      elements: [{ id: 't1', text: 'Body', x: 0, y: 0, width: 180, fontSize: 24 }],
+      createdAt: '2026-04-19T00:00:00.000Z',
+      lastModifiedAt: '2026-04-19T00:00:00.000Z',
+      attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
+    };
+    service.notes.set([existing]);
+
+    const archive = await service.exportNoteArchive(8);
+
+    expect(storage.readAttachment).toHaveBeenCalledWith(8, 'a1', 'text/plain');
+    expect(noteArchive.exportNote).toHaveBeenCalled();
+    expect(archive.fileName).toBe('Exported.mrn');
+  });
+
+  it('inspects an import archive title', async () => {
+    const result = await service.inspectImportArchive(
+      new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' }),
+    );
+
+    expect(result.title).toBe('Imported note');
+    expect(noteArchive.inspectArchive).toHaveBeenCalled();
+  });
+
+  it('imports a note archive as a new note when no title collision exists', async () => {
+    const imported = await service.importNoteArchive(
+      new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' }),
+      'rename',
+    );
+
+    expect(imported.title).toBe('Imported note');
+    expect(storage.writeAttachment).toHaveBeenCalledWith(
+      imported.id,
+      jasmine.objectContaining({ id: 'a1' }),
+      jasmine.any(File),
+    );
+    expect(auth.recordActivity).toHaveBeenCalled();
+  });
+
+  it('replaces an existing note with the same title when requested', async () => {
+    service.notes.set([
+      {
+        id: 10,
+        title: 'Imported note',
+        elements: [{ id: 't1', text: 'Old', x: 0, y: 0, width: 180, fontSize: 24 }],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T00:00:00.000Z',
+        attachments: [{ id: 'old-attachment', name: 'old.txt', type: 'text/plain', size: 3 }],
+      },
+    ]);
+
+    const imported = await service.importNoteArchive(
+      new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' }),
+      'replace',
+    );
+
+    expect(storage.deleteNote).toHaveBeenCalledWith(10);
+    expect(imported.id).toBe(10);
+    expect(service.notes()[0].title).toBe('Imported note');
+  });
+
+  it('renames an imported note when a same-title note already exists and replace is not chosen', async () => {
+    service.notes.set([
+      {
+        id: 10,
+        title: 'Imported note',
+        elements: [{ id: 't1', text: 'Old', x: 0, y: 0, width: 180, fontSize: 24 }],
+        createdAt: '2026-04-19T00:00:00.000Z',
+        lastModifiedAt: '2026-04-19T00:00:00.000Z',
+        attachments: [],
+      },
+    ]);
+
+    const imported = await service.importNoteArchive(
+      new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' }),
+      'rename',
+    );
+
+    expect(imported.title).toBe('Imported note - Import');
+    expect(storage.deleteNote).not.toHaveBeenCalled();
   });
 });

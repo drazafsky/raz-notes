@@ -377,6 +377,21 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     void this.router.navigate(['/notes']);
   }
 
+  async exportNote(): Promise<void> {
+    if (!this.note) {
+      return;
+    }
+
+    this.noteError = '';
+    try {
+      const archive = await this.notesState.exportNoteArchive(this.note.id);
+      this.downloadArchive(archive.blob, archive.fileName);
+      this.showSaveSuccess('Note exported.');
+    } catch (error) {
+      this.noteError = error instanceof Error ? error.message : 'Something went wrong.';
+    }
+  }
+
   async deleteAttachment(attachmentId: string): Promise<void> {
     if (!this.note) {
       return;
@@ -2440,5 +2455,14 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     return Array.from(event.dataTransfer.types).includes('Files');
+  }
+
+  private downloadArchive(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 }

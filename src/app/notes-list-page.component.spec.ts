@@ -52,6 +52,18 @@ class MockNotesStateService {
   ]);
   readonly notesByUpdatedAt = computed(() => this.notes());
   deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
+  exportNoteArchive = jasmine.createSpy('exportNoteArchive').and.resolveTo({
+    blob: new Blob(['archive']),
+    fileName: 'Saved.mrn',
+  });
+  inspectImportArchive = jasmine
+    .createSpy('inspectImportArchive')
+    .and.resolveTo({ title: 'Saved' });
+  importNoteArchive = jasmine.createSpy('importNoteArchive').and.returnValue(Promise.resolve());
+
+  getNoteByTitle(title: string): Note | undefined {
+    return this.notes().find((note) => note.title === title);
+  }
 }
 
 describe('NotesListPageComponent', () => {
@@ -120,6 +132,94 @@ describe('NotesListPageComponent', () => {
     await component.deleteNote(1);
 
     expect(notesState.deleteNote).toHaveBeenCalledWith(1);
+  });
+
+  it('exports a note from the list page', async () => {
+    const notesState = new MockNotesStateService();
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:archive');
+    spyOn(URL, 'revokeObjectURL');
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    const clickSpy = spyOn(HTMLAnchorElement.prototype, 'click');
+
+    await fixture.componentInstance.exportNote(1);
+
+    expect(notesState.exportNoteArchive).toHaveBeenCalledWith(1);
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('imports a note and chooses replace when the user confirms a title collision', async () => {
+    const notesState = new MockNotesStateService();
+    spyOn(window, 'confirm').and.returnValue(true);
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    const file = new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', { value: [file] });
+
+    await fixture.componentInstance.importNote({ target: input } as unknown as Event);
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(notesState.importNoteArchive).toHaveBeenCalledWith(file, 'replace');
+  });
+
+  it('imports a note and appends the import suffix when the user declines replacement', async () => {
+    const notesState = new MockNotesStateService();
+    spyOn(window, 'confirm').and.returnValue(false);
+    await TestBed.configureTestingModule({
+      imports: [NotesListPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useClass: MockAuthService },
+        { provide: NotesStateService, useValue: notesState },
+        { provide: AttachmentPreviewService, useValue: createPreviewServiceSpy() },
+        {
+          provide: StorageService,
+          useValue: jasmine.createSpyObj<StorageService>('StorageService', {
+            readAttachment: Promise.resolve(new Blob(['demo'], { type: 'text/plain' })),
+          }),
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotesListPageComponent);
+    const file = new File(['archive'], 'note.mrn', { type: 'application/x-raz-notes' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', { value: [file] });
+
+    await fixture.componentInstance.importNote({ target: input } as unknown as Event);
+
+    expect(notesState.importNoteArchive).toHaveBeenCalledWith(file, 'rename');
   });
 
   it('renders saved text styling in the note preview', async () => {

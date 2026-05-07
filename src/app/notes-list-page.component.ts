@@ -40,6 +40,39 @@ export class NotesListPageComponent {
   passwordlessError = '';
   noteActionError = '';
 
+  async exportNote(noteId: number): Promise<void> {
+    this.noteActionError = '';
+    try {
+      const archive = await this.notesState.exportNoteArchive(noteId);
+      this.downloadArchive(archive.blob, archive.fileName);
+    } catch (error) {
+      this.noteActionError = error instanceof Error ? error.message : 'Something went wrong.';
+    }
+  }
+
+  async importNote(event: Event): Promise<void> {
+    this.noteActionError = '';
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+
+    try {
+      const archive = await this.notesState.inspectImportArchive(file);
+      const existing = this.notesState.getNoteByTitle(archive.title);
+      const collisionStrategy =
+        existing && window.confirm(`A note named "${archive.title}" already exists. Replace it?`)
+          ? 'replace'
+          : 'rename';
+
+      await this.notesState.importNoteArchive(file, collisionStrategy);
+    } catch (error) {
+      this.noteActionError = error instanceof Error ? error.message : 'Something went wrong.';
+    }
+  }
+
   async enablePasswordlessUnlock(): Promise<void> {
     this.passwordlessError = '';
     try {
@@ -133,5 +166,14 @@ export class NotesListPageComponent {
 
   attachmentForElement(note: Note, element: NoteAttachmentElement): Attachment | null {
     return note.attachments.find((attachment) => attachment.id === element.attachmentId) ?? null;
+  }
+
+  private downloadArchive(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 }

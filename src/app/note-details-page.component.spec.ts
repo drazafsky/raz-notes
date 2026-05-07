@@ -37,6 +37,10 @@ class MockNotesStateService {
     });
 
   createNote = jasmine.createSpy('createNote');
+  exportNoteArchive = jasmine.createSpy('exportNoteArchive').and.resolveTo({
+    blob: new Blob(['archive']),
+    fileName: 'Existing note.mrn',
+  });
   deleteNote = jasmine.createSpy('deleteNote').and.returnValue(Promise.resolve());
   deleteAttachment = jasmine
     .createSpy('deleteAttachment')
@@ -140,6 +144,19 @@ describe('NoteDetailsPageComponent', () => {
 
     expect(notesState.deleteAttachment).toHaveBeenCalledWith(7, 'a1');
     expect(fixture.componentInstance.note?.attachments).toEqual([]);
+  });
+
+  it('exports a note from the detail page', async () => {
+    const notesState = new MockNotesStateService();
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:archive');
+    spyOn(URL, 'revokeObjectURL');
+    const clickSpy = spyOn(HTMLAnchorElement.prototype, 'click');
+    const fixture = await createComponent(notesState);
+
+    await fixture.componentInstance.exportNote();
+
+    expect(notesState.exportNoteArchive).toHaveBeenCalledWith(7);
+    expect(clickSpy).toHaveBeenCalled();
   });
 
   it('renders generated DOCX previews for unplaced attachments', async () => {
