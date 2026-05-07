@@ -26,6 +26,7 @@ export type ImportedNoteCollisionStrategy = 'replace' | 'rename';
 @Injectable({ providedIn: 'root' })
 export class NotesStateService {
   readonly notes = signal<Note[]>([]);
+  readonly loaded = signal(false);
   readonly notesByUpdatedAt = computed(() =>
     [...this.notes()].sort((left, right) =>
       right.lastModifiedAt.localeCompare(left.lastModifiedAt),
@@ -40,11 +41,14 @@ export class NotesStateService {
   private readonly storage = inject(StorageService);
 
   async load(): Promise<void> {
+    this.loaded.set(false);
     this.notes.set(await this.storage.loadNotes());
+    this.loaded.set(true);
   }
 
   clear(): void {
     this.notes.set([]);
+    this.loaded.set(false);
   }
 
   getNote(noteId: number): Note | undefined {

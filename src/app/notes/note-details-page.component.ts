@@ -6,6 +6,7 @@ import {
   HostListener,
   OnDestroy,
   ViewChild,
+  effect,
   inject,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
@@ -176,6 +177,8 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
   private readonly textCanvasTool = inject(TextCanvasToolService);
   private _selectedElementId: string | null = null;
   private syncingSelectionState = false;
+  private readonly routeNoteId: number | null = null;
+  private noteInitialized = false;
 
   note: Note | null = null;
   noteError = '';
@@ -259,19 +262,26 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     const noteId = Number(routeId);
-    const note = Number.isFinite(noteId) ? this.notesState.getNote(noteId) : undefined;
-    if (!note) {
+    if (!Number.isFinite(noteId)) {
       void this.router.navigate(['/notes']);
       return;
     }
+    this.routeNoteId = noteId;
+    effect(() => {
+      if (this.routeNoteId === null || this.noteInitialized) {
+        return;
+      }
 
-    this.note = note;
-    this.noteTitle = note.title;
-    this.elements = note.elements.map((element) => this.cloneElement(element));
-    this.selectedElementId = this.elements[0]?.id ?? null;
-    this.ensureChecklistItemSelection();
-    this.initializeColorUsage();
-    this.showPendingNavigationSaveSuccess();
+      const note = this.notesState.getNote(this.routeNoteId);
+      if (note) {
+        this.hydrateLoadedNote(note);
+        return;
+      }
+
+      if (this.notesState.loaded()) {
+        void this.router.navigate(['/notes']);
+      }
+    });
   }
 
   ngAfterViewInit(): void {
@@ -1293,6 +1303,17 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
         lastModifiedAt: new Date().toISOString(),
       };
     }
+  }
+
+  private hydrateLoadedNote(note: Note): void {
+    this.note = note;
+    this.noteTitle = note.title;
+    this.elements = note.elements.map((element) => this.cloneElement(element));
+    this.selectedElementId = this.elements[0]?.id ?? null;
+    this.ensureChecklistItemSelection();
+    this.initializeColorUsage();
+    this.showPendingNavigationSaveSuccess();
+    this.noteInitialized = true;
   }
 
   private deleteElement(elementId: string): void {

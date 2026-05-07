@@ -1,3 +1,4 @@
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 
@@ -9,7 +10,8 @@ import { Note, NoteAttachmentElement, NoteTextElement, StorageService } from './
 
 class MockNotesStateService {
   updateError: Error | null = null;
-  note: Note = {
+  readonly loaded = signal(true);
+  private _note: Note = {
     id: 7,
     title: 'Existing note',
     elements: [{ id: 't1', text: 'Saved body', x: 0, y: 0, width: 180, fontSize: 24 }],
@@ -17,9 +19,20 @@ class MockNotesStateService {
     lastModifiedAt: '2026-04-19T00:00:00.000Z',
     attachments: [{ id: 'a1', name: 'file.txt', type: 'text/plain', size: 4 }],
   };
+  readonly notes = signal<Note[]>([this._note]);
+  readonly notesByUpdatedAt = computed(() => this.notes());
+
+  get note(): Note {
+    return this._note;
+  }
+
+  set note(value: Note) {
+    this._note = value;
+    this.notes.set([value]);
+  }
 
   getNote(noteId: number): Note | undefined {
-    return noteId === this.note.id ? this.note : undefined;
+    return this.notes().find((note) => note.id === noteId);
   }
 
   updateNote = jasmine
@@ -122,6 +135,26 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.scale).toBeCloseTo(expectedScale);
     expect(fixture.componentInstance.viewX).toBeCloseTo(400 - bounds.centerX * expectedScale);
     expect(fixture.componentInstance.viewY).toBeCloseTo(300 - bounds.centerY * expectedScale);
+  });
+
+  it('keeps the note detail route on refresh while notes are still loading', async () => {
+    const notesState = new MockNotesStateService();
+    notesState.loaded.set(false);
+    notesState.notes.set([]);
+    const fixture = await createComponent(notesState);
+    const router = TestBed.inject(Router);
+    const navigateSpy = spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+
+    expect(fixture.componentInstance.note).toBeNull();
+    expect(navigateSpy).not.toHaveBeenCalled();
+
+    notesState.notes.set([notesState.note]);
+    notesState.loaded.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.note?.id).toBe(7);
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('opens a confirmation modal before deleting a note and navigates after confirmation', async () => {
