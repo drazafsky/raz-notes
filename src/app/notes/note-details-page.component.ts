@@ -1669,6 +1669,13 @@ export class NoteDetailsPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  onChecklistItemPointerDown(event: PointerEvent, elementId: string, itemId: string): void {
+    event.stopPropagation();
+    this.selectedElementId = elementId;
+    this.selectedChecklistItemId = itemId;
+    this.editingChecklistItemId = itemId;
+  }
+
   onChecklistItemFocus(elementId: string, itemId: string): void {
     this.selectedElementId = elementId;
     this.selectedChecklistItemId = itemId;

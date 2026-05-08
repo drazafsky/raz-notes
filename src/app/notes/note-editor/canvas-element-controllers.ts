@@ -85,6 +85,7 @@ export interface ChecklistCanvasElementController {
   onChecklistItemActivationKeyDown(event: Event, elementId: string, itemId: string): void;
   onChecklistItemInput(elementId: string, itemId: string, event: Event): void;
   onChecklistItemKeyDown(event: KeyboardEvent, elementId: string, itemId: string): void;
+  onChecklistItemPointerDown(event: PointerEvent, elementId: string, itemId: string): void;
   onChecklistItemFocus(elementId: string, itemId: string): void;
   stopChecklistItemEditing(itemId: string, event?: FocusEvent): void;
   onChecklistReorderHandlePointerDown(event: PointerEvent, elementId: string, itemId: string): void;

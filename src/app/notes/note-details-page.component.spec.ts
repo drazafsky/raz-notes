@@ -1337,6 +1337,48 @@ describe('NoteDetailsPageComponent', () => {
     expect(fixture.componentInstance.editingChecklistItemId).toBe(itemId);
   });
 
+  it('allows pointer selection inside a checklist item editor without re-triggering checklist activation', async () => {
+    const fixture = await createComponent();
+
+    fixture.componentInstance.setActiveTool('checklist');
+    fixture.componentInstance.onCanvasPointerDown({
+      button: 0,
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.componentInstance.onDocumentPointerUp({
+      clientX: 140,
+      clientY: 160,
+    } as PointerEvent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const checklist = fixture.componentInstance.elements.at(-1) as {
+      id: string;
+      items: { id: string }[];
+    };
+    const itemId = checklist.items[0].id;
+    const editor = fixture.nativeElement.querySelector(
+      `#${fixture.componentInstance.checklistEditorId(checklist.id, itemId)}`,
+    ) as HTMLDivElement;
+    const activateSpy = spyOn(
+      fixture.componentInstance,
+      'onChecklistContainerPointerDown',
+    ).and.callThrough();
+
+    editor.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+      }),
+    );
+
+    expect(activateSpy).not.toHaveBeenCalled();
+    expect(
+      (fixture.componentInstance as unknown as { interactionMode: string }).interactionMode,
+    ).toBe('none');
+    expect(fixture.componentInstance.editingChecklistItemId).toBe(itemId);
+  });
+
   it('deletes a checklist item from its row action', async () => {
     const fixture = await createComponent();
 

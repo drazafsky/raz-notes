@@ -269,6 +269,9 @@
                   class="min-h-8 rounded border border-theme-accent bg-theme-bg/95 px-2 py-1 outline-none"
                   (input)="controller.onChecklistItemInput(element.id, row.item.id, $event)"
                   (keydown)="controller.onChecklistItemKeyDown($event, element.id, row.item.id)"
+                  (pointerdown)="
+                    controller.onChecklistItemPointerDown($event, element.id, row.item.id)
+                  "
                   (focus)="controller.onChecklistItemFocus(element.id, row.item.id)"
                   (blur)="controller.stopChecklistItemEditing(row.item.id, $event)"
                 ></div>
